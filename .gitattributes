@@ -1,0 +1,22 @@
+# Normalize all text files to LF in the repository, and check them out as LF
+# on every platform. Keeps Docker/nginx/shell/PHP/JS files consistent and
+# stops the "LF will be replaced by CRLF" warnings on Windows checkouts.
+* text=auto eol=lf
+
+# Binary files — never normalize line endings, never diff as text.
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.gif   binary
+*.ico   binary
+*.webp  binary
+*.woff  binary
+*.woff2 binary
+*.ttf   binary
+*.eot   binary
+*.otf   binary
+*.pdf   binary
+
+# Windows batch files must stay CRLF to run correctly.
+*.bat   text eol=crlf
+*.cmd   text eol=crlf
