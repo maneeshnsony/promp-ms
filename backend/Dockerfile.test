@@ -1,0 +1,34 @@
+# Test runner image — not used by `docker compose up`. Built/run on demand via the
+# `api-test` compose service (profile "test") or `docker build -f Dockerfile.test`.
+#
+# Kept as a separate Dockerfile (rather than an extra stage in the main Dockerfile) so it
+# can have its own Dockerfile.test.dockerignore: the main .dockerignore deliberately excludes
+# tests/ and phpunit.dist.xml from the production build context, and a single .dockerignore
+# applies to every stage of a Dockerfile — there's no per-stage override. This also installs
+# dev Composer dependencies (phpunit), which the production `vendor` stage explicitly omits.
+
+# ---------- Stage 1: install PHP dependencies WITH dev deps (phpunit etc.) ----------
+FROM composer:2 AS vendor-test
+WORKDIR /app
+COPY composer.json composer.lock ./
+# Same ext-intl waiver as backend/Dockerfile's vendor stage — this image's own apk
+# packages (below) provide it at runtime.
+RUN composer install --no-scripts --no-autoloader --prefer-dist --ignore-platform-req=ext-intl
+COPY . .
+RUN composer dump-autoload --optimize
+
+# ---------- Stage 2: test runner — same precompiled packages as the runtime image, plus PCOV ----------
+FROM alpine:3.24 AS test
+
+RUN apk add --no-cache \
+        php84 php84-common php84-opcache php84-openssl \
+        php84-pdo php84-pdo_pgsql php84-pgsql \
+        php84-mbstring php84-intl php84-tokenizer php84-xml php84-dom php84-xmlwriter \
+        php84-curl php84-fileinfo php84-session php84-phar php84-ctype php84-zip \
+        php84-pecl-pcov \
+    && ln -s /usr/bin/php84 /usr/bin/php
+
+WORKDIR /var/www/html
+COPY --from=vendor-test /app /var/www/html
+
+CMD ["php", "vendor/bin/phpunit"]

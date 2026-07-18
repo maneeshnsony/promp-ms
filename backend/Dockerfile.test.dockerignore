@@ -9,10 +9,6 @@ writable/uploads/*
 !writable/logs/.gitkeep
 !writable/session/.gitkeep
 !writable/uploads/.gitkeep
-tests
 *.md
 LICENSE
 builds
-phpunit.dist.xml
-Dockerfile.test
-Dockerfile.test.dockerignore

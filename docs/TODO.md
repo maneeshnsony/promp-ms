@@ -66,20 +66,23 @@ Prompts, categories, tags, roles, Google sign-in.
 - [x] `docker-compose.yml` / root `.env.example` — `SKIP_AUTH` wired to both `api` (`SKIP_AUTH`) and `web` (`NEXT_PUBLIC_SKIP_AUTH`) services
 - [x] `backend/docker/zz-prompt-ms.conf` — `clear_env = no`, without which docker-compose `environment:` overrides never reach php-fpm workers (decisions log #13)
 
-### Backend CRUD
-- [ ] `PromptModel` — validation rules (`title` required/max 255, `description` required), soft deletes, `scopeFilters()` (category/tag/role/pinned/search)
-- [ ] `PromptController::index` — pagination (`page`, `per_page`, default 20, capped 100), ordered by `is_pinned DESC, created_at DESC`
-- [ ] `PromptController::show`
-- [ ] `PromptController::create` — validates, sets `created_by`, syncs `category_ids`/`tag_ids`/`role_ids`
-- [ ] `PromptController::update` — snapshots pre-edit title/description into `prompt_versions` before applying changes
-- [ ] `PromptController::delete` — soft delete
-- [ ] `PromptController::trackCopy` — fire-and-forget, increments `copy_count`, returns 204
-- [ ] `PromptController::versions` — returns version history for a prompt
-- [ ] `syncPivot()` helper — shared many-to-many sync for category/tag/role (delete-then-insert; `null` leaves relation untouched on partial update)
-- [ ] `CategoryController` — plain CRUD (index/create/update/delete)
-- [ ] `TagController` — plain CRUD
-- [ ] `RoleController` — plain CRUD
-- [ ] Every response follows the envelope: `{ "status": "success"|"error", "data": ..., "meta"?: {...}, "message"?: "..." }`
+### Backend CRUD ✅ Complete (per `docs/PHASE1-BACKEND-CRUD-PLAN.md`; pending live DB verification — see that plan's Verification section)
+- [x] `PromptModel` — validation rules (`title` required/max 255, `description` required), soft deletes, `scopeFilters()` (category/tag/role/pinned/search)
+- [x] `PromptController::index` — pagination (`page`, `per_page`, default 20, capped 100), ordered by `is_pinned DESC, created_at DESC`
+- [x] `PromptController::show`
+- [x] `PromptController::create` — validates, sets `created_by`, syncs `category_ids`/`tag_ids`/`role_ids`
+- [x] `PromptController::update` — snapshots pre-edit title/description into `prompt_versions` before applying changes
+- [x] `PromptController::delete` — soft delete
+- [x] `PromptController::trackCopy` — fire-and-forget, increments `copy_count`, returns 204
+- [x] `PromptController::versions` — returns version history for a prompt
+- [x] `syncPivot()` helper — shared many-to-many sync for category/tag/role (delete-then-insert; `null` leaves relation untouched on partial update)
+- [x] `attachRelations()` — implemented for real (bulk-queries categories/tags/roles per prompt list, one query per relation)
+- [x] `CategoryModel`/`TagModel`/`RoleModel` + `PromptVersionModel`
+- [x] `CategoryController` — plain CRUD (index/create/update/delete)
+- [x] `TagController` — plain CRUD
+- [x] `RoleController` — plain CRUD
+- [x] Every response follows the envelope: `{ "status": "success"|"error", "data": ..., "meta"?: {...}, "message"?: "..." }`
+- [x] `app/Config/Routes.php` — protected `api/v1` group populated with all prompt/category/tag/role routes under `['cors', 'auth']`
 
 ### Frontend — dashboard MVP
 - [ ] `lib/types.ts` — `Category`, `Tag`, `Role`, `Prompt` interfaces

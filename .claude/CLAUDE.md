@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project status
 
-**Phase 0 (Foundation) is implemented**: `backend/` (CodeIgniter 4.7.4 + firebase/php-jwt), `frontend/` (Next.js 16, Tailwind v4, shadcn/ui, next-themes), the Docker layer, all 9 migrations (run), and category/role seeders (run). Phases 1–4 (CRUD, auth, discovery, enhancements) are not yet started — see `docs/TODO.md` for the phased checklist. **`docs/PLAN.md` remains the authoritative spec** for the data model (DDL), API contract, auth flow, and design system; its decisions log records settled deviations (notably: no containerized Postgres — see below). Implement *against* the plan rather than re-deriving architecture.
+**Phase 0 (Foundation) is implemented**: `backend/` (CodeIgniter 4.7.4 + firebase/php-jwt), `frontend/` (Next.js 16, Tailwind v4, shadcn/ui, next-themes), the Docker layer, all 9 migrations (run), and category/role seeders (run). **Phase 1's Auth and Backend CRUD slices are implemented** (`AuthController`/`AuthFilter`/`AuthContext`/`UserModel`, and `PromptController`/`PromptModel`/`PromptVersionModel` + plain `CategoryController`/`TagController`/`RoleController` with their models — see `docs/PHASE1-AUTH-PLAN.md` and `docs/PHASE1-BACKEND-CRUD-PLAN.md`); Phase 1's frontend dashboard MVP and Phases 2–4 are not yet started — see `docs/TODO.md` for the phased checklist. **`docs/PLAN.md` remains the authoritative spec** for the data model (DDL), API contract, auth flow, and design system; its decisions log records settled deviations (notably: no containerized Postgres — see below). Implement *against* the plan rather than re-deriving architecture.
 
 ### Commands
 

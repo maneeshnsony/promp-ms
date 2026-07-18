@@ -18,6 +18,7 @@ RUN apk add --no-cache \
         php84-pdo php84-pdo_pgsql php84-pgsql \
         php84-mbstring php84-intl php84-tokenizer php84-xml php84-dom php84-xmlwriter \
         php84-curl php84-fileinfo php84-session php84-phar php84-ctype php84-zip \
+        php84-pecl-pcov \
     && ln -s /usr/bin/php84 /usr/bin/php \
     && ln -s /usr/sbin/php-fpm84 /usr/sbin/php-fpm
 

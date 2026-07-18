@@ -29,6 +29,26 @@ services:
       start_period: 10s
     networks: [prompt_ms_net]
 
+  # Not part of `docker compose up` — the test stage builds with full (dev) composer
+  # deps and no www-data user, so it stays out of the default service set. Run with:
+  #   docker compose --profile test run --rm api-test
+  api-test:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.test
+    container_name: prompt-ms-api-test
+    profiles: ["test"]
+    env_file: ./backend/.env
+    environment:
+      # phpunit.dist.xml defaults database.tests.hostname to 127.0.0.1 (correct for a
+      # host-side `composer test` run) — inside this container that would resolve to the
+      # container itself, not the host Postgres, so route it via host.docker.internal.
+      # PHPUnit's <env> only sets a var if it isn't already set, so this wins.
+      database.tests.hostname: host.docker.internal
+    extra_hosts:
+      - "host.docker.internal:host-gateway" # no-op on Docker Desktop, needed on Linux
+    networks: [prompt_ms_net]
+
   nginx:
     image: nginx:1.27-alpine
     container_name: prompt-ms-nginx
