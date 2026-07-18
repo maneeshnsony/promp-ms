@@ -52,17 +52,19 @@ Infra + full schema. All items built, migrated, and seeded — verified end-to-e
 
 Prompts, categories, tags, roles, Google sign-in.
 
-### Auth
-- [ ] `AuthController::google` — verify Google ID token against JWKS, check `aud` matches `GOOGLE_CLIENT_ID`, optional `hd` domain check
-- [ ] `UserModel::upsertFromGoogle` — find-or-create by `google_sub`
-- [ ] Mint short-lived (1h) backend session JWT (`HS256`, `APP_JWT_SECRET`)
-- [ ] `AuthFilter` — the real enforcement point; rejects any `api/v1` request without a valid bearer token (401)
-- [ ] `AuthContext` — static per-request holder for the authenticated user (safe under PHP-FPM's one-request-per-process model)
-- [ ] `app/Config/Routes.php` — `auth/google` route (no filter) + `api/v1` group with `['cors', 'auth']` filters
-- [ ] Frontend: `auth.ts` (Auth.js v5 + Google provider, JWT session strategy, exchanges Google ID token for backend token in the `jwt` callback)
-- [ ] Frontend: `app/api/auth/[...nextauth]/route.ts`
-- [ ] Frontend: `middleware.ts` — UX-only redirect for signed-out users (explicitly not the security boundary)
-- [ ] Frontend: `app/login/page.tsx` — "Sign in with Google"
+### Auth ✅ Complete (pending manual Google Cloud Console redirect-URI registration to test live sign-in)
+- [x] `AuthController::google` — verify Google ID token against JWKS, check `aud` matches `GOOGLE_CLIENT_ID`, optional `hd` domain check
+- [x] `UserModel::upsertFromGoogle` — find-or-create by `google_sub`
+- [x] Mint short-lived (1h) backend session JWT (`HS256`, `APP_JWT_SECRET`)
+- [x] `AuthFilter` — the real enforcement point; rejects any `api/v1` request without a valid bearer token (401). _Also gates on the dev/testing-only `SKIP_AUTH` flag (default `false`) — see `docs/PHASE1-AUTH-PLAN.md`._
+- [x] `AuthContext` — static per-request holder for the authenticated user (safe under PHP-FPM's one-request-per-process model)
+- [x] `app/Config/Routes.php` — `auth/google` route (no filter) + `api/v1` group with `['cors', 'auth']` filters. _Uses the `filter` (singular) group option key — PLAN.md's `filters` example is silently ignored by CI4 4.7 (see decisions log #12)._
+- [x] Frontend: `auth.ts` (Auth.js v5 beta + Google provider, JWT session strategy, exchanges Google ID token for backend token in the `jwt` callback)
+- [x] Frontend: `app/api/auth/[...nextauth]/route.ts`
+- [x] Frontend: `proxy.ts` — UX-only redirect for signed-out users (explicitly not the security boundary). _Renamed from `middleware.ts`: Next.js 16 deprecated that file convention in favor of `proxy` (decisions log #10). Also short-circuits when `NEXT_PUBLIC_SKIP_AUTH=true`._
+- [x] Frontend: `app/login/page.tsx` — "Sign in with Google"
+- [x] `docker-compose.yml` / root `.env.example` — `SKIP_AUTH` wired to both `api` (`SKIP_AUTH`) and `web` (`NEXT_PUBLIC_SKIP_AUTH`) services
+- [x] `backend/docker/zz-prompt-ms.conf` — `clear_env = no`, without which docker-compose `environment:` overrides never reach php-fpm workers (decisions log #13)
 
 ### Backend CRUD
 - [ ] `PromptModel` — validation rules (`title` required/max 255, `description` required), soft deletes, `scopeFilters()` (category/tag/role/pinned/search)
@@ -136,10 +138,10 @@ Apply throughout implementation, not tied to a single phase.
 ### Testing
 - [ ] Backend: PHPUnit feature tests hitting `/api/v1/prompts` end-to-end, including the no-bearer-token 401 case
 - [ ] Backend: unit tests for `PromptModel` validation and pivot-sync logic
-- [ ] Backend: test confirming `AuthController::google` rejects a token whose `aud` doesn't match
+- [x] Backend: `AuthFilter`/`AuthContext`/`AuthController`/`UserModel` covered — `tests/unit/{AuthFilterTest,AuthContextTest,AuthControllerTest,UserModelTest}.php`: missing/garbage/expired/valid bearer token, `SKIP_AUTH` bypass on and off, `AuthController::google`'s missing-`id_token` (400) and malformed-token (401) paths, `UserModel::upsertFromGoogle` create-then-update by `google_sub`. _Not yet covered: a real Google-signed token with a mismatched `aud` — would need a mocked JWKS response rather than a live fetch to test deterministically._
 - [ ] Frontend: Vitest + React Testing Library for `PromptCard`, `Pagination`, filters
 - [ ] Frontend: Playwright E2E — sign in → create prompt → see card → click copy → clipboard holds description → `copy_count` increments
-- [ ] CI: run `composer test` and `npm test` on every PR, plus `docker compose build`
+- [ ] CI: run `composer test` and `npm test` on every PR, plus `docker compose build`. _`composer test` currently exits 1 on a fresh host even with all tests green — `phpunit.dist.xml`'s `failOnWarning="true"` trips on "No code coverage driver available" when Xdebug/PCOV isn't installed; a CI image needs one of those, or drop `failOnWarning`._
 
 ### Security & non-functional
 - [ ] Verify every Google ID token server-side (signature via JWKS, `aud`, optional `hd`) — never trust unverified claims

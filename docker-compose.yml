@@ -15,6 +15,8 @@ services:
       # Single source of truth: root .env — the same value feeds web's AUTH_GOOGLE_ID below.
       # `environment` overrides any env_file copy, so the api's `aud` check can never drift.
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      # Dev/testing-only bypass — see backend/.env and docs/PHASE1-AUTH-PLAN.md.
+      SKIP_AUTH: ${SKIP_AUTH:-false}
     extra_hosts:
       - "host.docker.internal:host-gateway" # no-op on Docker Desktop, needed on Linux
     healthcheck:
@@ -46,11 +48,13 @@ services:
         # NEXT_PUBLIC_* is inlined into the client bundle at `next build` — it must arrive
         # as a build arg; a runtime env var alone never reaches browser code.
         NEXT_PUBLIC_API_BASE_URL: "http://localhost:8080/api/v1"
+        NEXT_PUBLIC_SKIP_AUTH: "${SKIP_AUTH:-false}"
     container_name: prompt-ms-web
     restart: unless-stopped
     ports: ["3000:3000"]
     environment:
       NEXT_PUBLIC_API_BASE_URL: "http://localhost:8080/api/v1"  # baked at build; kept for server-side reads
+      NEXT_PUBLIC_SKIP_AUTH: "${SKIP_AUTH:-false}"              # baked at build; kept for server-side reads
       API_BASE_URL: "http://nginx/api/v1"                       # server-side calls, container-to-container
       AUTH_URL: "http://localhost:3000"
       # Optional until Auth.js lands in Phase 1 — set real values in the root .env then.
