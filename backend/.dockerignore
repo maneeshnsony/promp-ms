@@ -1,0 +1,16 @@
+vendor
+.git
+.env
+writable/cache/*
+writable/logs/*
+writable/session/*
+writable/uploads/*
+!writable/cache/.gitkeep
+!writable/logs/.gitkeep
+!writable/session/.gitkeep
+!writable/uploads/.gitkeep
+tests
+*.md
+LICENSE
+builds
+phpunit.dist.xml

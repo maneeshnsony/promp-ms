@@ -4,9 +4,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project status
 
-This repository currently contains only a design/implementation plan (`docs/PLAN.md`) — no backend, frontend, or Docker code has been scaffolded yet. **`docs/PLAN.md` is the authoritative spec** for this project ("Prompt Hub"): it contains the finalized data model (DDL), API contract, auth flow, Docker Compose setup, and a decisions log recording which open questions have already been settled. Read it before starting implementation work, and implement *against* it rather than re-deriving architecture from scratch — most design choices below were deliberated with the user and have a documented "why."
+**Phase 0 (Foundation) is implemented**: `backend/` (CodeIgniter 4.7.4 + firebase/php-jwt), `frontend/` (Next.js 16, Tailwind v4, shadcn/ui, next-themes), the Docker layer, all 9 migrations (run), and category/role seeders (run). Phases 1–4 (CRUD, auth, discovery, enhancements) are not yet started — see `docs/TODO.md` for the phased checklist. **`docs/PLAN.md` remains the authoritative spec** for the data model (DDL), API contract, auth flow, and design system; its decisions log records settled deviations (notably: no containerized Postgres — see below). Implement *against* the plan rather than re-deriving architecture.
 
-When code is eventually scaffolded into `backend/` and `frontend/`, update this file with the real build/lint/test commands (expected to be `composer test` / `composer install` in `backend/`, `npm run dev` / `npm test` / `npm run build` in `frontend/`, and `docker compose up` / `docker compose build` at the repo root — see the Testing strategy section of the plan).
+### Commands
+
+- Repo root: `docker compose build` / `docker compose up -d` (3 services; see Architecture). Requires a reachable **host** Postgres — see below.
+- Migrations/seeds (inside the api container): `docker exec prompt-ms-api php spark migrate` and `php spark db:seed DatabaseSeeder`.
+- `backend/`: `composer test` (PHPUnit). `frontend/`: `npm run dev` / `npm run build` / `npm run lint`.
+- Local secrets live in git-ignored `.env` (repo root) and `backend/.env`; templates are the committed `.env.example` files. `GOOGLE_CLIENT_ID` is single-sourced in the root `.env` (compose injects it into both `web` and `api`).
 
 ## What this project is
 
@@ -18,11 +23,12 @@ An internal tool for storing, organizing, and quickly reusing prompts — search
 
 - `backend/` — CodeIgniter 4 REST API (PHP-FPM 8.4), all endpoints under `api/v1`, fronted by Nginx (reverse proxy → FastCGI, not served directly).
 - `frontend/` — Next.js 16 App Router UI. Server Components call the API container-to-container via Nginx's Docker service name (`API_BASE_URL`); client-side calls go through the published host port (`NEXT_PUBLIC_API_BASE_URL`). Both must be set — see `lib/api.ts` in the plan.
-- `docker-compose.yml` at repo root wires five services on one network (`prompthub_net`): `api`, `nginx`, `web`, `db` (Postgres), `pgadmin` (dev-only).
+- `docker-compose.yml` at repo root wires three services on one network (`prompt_ms_net`), container names `prompt-ms-*`: `api`, `nginx`, `web`. **PostgreSQL is NOT containerized** (deliberate deviation from PLAN.md's original Docker section, recorded in its decisions log): the api connects to a host-installed Postgres at `host.docker.internal:5432`, database `prompt_ms`, and carries a healthcheck probing it. On Linux hosts, Postgres must listen beyond loopback for the `host-gateway` route to reach it, and `backend/writable/` must be writable by uid 1000 (php-fpm's `www` user) since the bind mount overrides image ownership.
 - Auth is split by design: Next.js (Auth.js v5) drives the Google OAuth redirect/consent UX, but the CodeIgniter `AuthFilter` is the actual security boundary — it independently verifies Google's ID token against JWKS and issues its own short-lived (1h) session JWT. Next.js middleware only redirects for UX; it must never be treated as the enforcement point (see "Why verification happens on the backend" in the plan — this is a deliberate reaction to a real 2025 Next.js middleware-bypass vulnerability class).
 - Three independent, flatly-structured facets on `prompts`: `categories`, `tags`, `roles` — each a many-to-many pivot table (`prompt_category`, `prompt_tag`, `prompt_role`) with identical shape, synced via the same helper (`syncPivot`) in `PromptController`. There is intentionally no phase→category→role hierarchy.
 - Edits to a prompt snapshot the *pre-edit* title/description into `prompt_versions` before applying the update (full snapshot per edit, not a diff).
 - Every API response uses one envelope shape: `{ "status": "success"|"error", "data": ..., "meta"?: {...}, "message"?: "..." }`.
+- `GET /api/v1/health` (`HealthController`) is a public liveness/readiness probe — the only unauthenticated `api/v1` route besides `auth/google`. It returns the standard envelope with `db` status (`200` healthy, `503` if Postgres is unreachable). This is the HTTP-facing probe (via nginx); it's separate from the container-level healthcheck in `docker-compose.yml`, which probes host Postgres directly for orchestration.
 
 ## Key constraints to preserve when implementing
 

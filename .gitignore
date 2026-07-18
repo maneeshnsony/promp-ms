@@ -17,6 +17,10 @@ frontend/out/
 frontend/.env*
 !frontend/.env.example
 
+# Docker Compose secrets (repo root)
+.env
+!.env.example
+
 # OS / editor
 .DS_Store
 Thumbs.db

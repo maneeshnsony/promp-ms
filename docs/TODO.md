@@ -4,46 +4,47 @@ A phased, checkbox-style task list derived from [`PLAN.md`](./PLAN.md), the auth
 
 ---
 
-## Phase 0 — Foundation
+## Phase 0 — Foundation ✅ Complete
 
-Infra + full schema.
+Infra + full schema. All items built, migrated, and seeded — verified end-to-end (3 containers up, api healthcheck healthy, `GET /api/v1/health` returns `200`/`db:up`, web serving 200, 12 `timestamptz` columns, 13 categories + 7 roles seeded).
 
 ### Docker
-- [ ] `docker-compose.yml` at repo root — 5 services (`api`, `nginx`, `web`, `db`, `pgadmin`) on one network (`prompthub_net`)
-- [ ] `backend/Dockerfile` — multi-stage (Composer vendor stage + Alpine runtime), PHP 8.4 installed via precompiled `apk add php84-*` packages (never `docker-php-ext-install`)
-- [ ] `frontend/Dockerfile` — multi-stage (deps → builder → runner), `next.config.js` sets `output: 'standalone'`
-- [ ] `docker/nginx/default.conf` — reverse proxy → PHP-FPM via FastCGI
-- [ ] `db` service healthcheck (`pg_isready`) wired so `api` waits on `service_healthy`
-- [ ] `backend/.env` + `.env.example` (dotted CI4 keys: `database.default.*`, `GOOGLE_CLIENT_ID`, `GOOGLE_ALLOWED_DOMAIN`, `APP_JWT_SECRET`)
-- [ ] `frontend` env vars in compose: `NEXT_PUBLIC_API_BASE_URL`, `API_BASE_URL`, `AUTH_URL`, `AUTH_SECRET`, `AUTH_GOOGLE_ID`, `AUTH_GOOGLE_SECRET`
+- [x] `docker-compose.yml` at repo root — 3 services (`api`, `nginx`, `web`) on one network (`prompt_ms_net`). _Deviation (PLAN.md decisions 6 & 9): no containerized `db` (api connects to host Postgres at `host.docker.internal:5432`), and no `pgadmin` (use any host DB client)._
+- [x] `backend/Dockerfile` — multi-stage (Composer vendor stage + Alpine runtime), PHP 8.4 installed via precompiled `apk add php84-*` packages (never `docker-php-ext-install`)
+- [x] `frontend/Dockerfile` — multi-stage (deps → builder → runner), `next.config.ts` sets `output: 'standalone'`
+- [x] `docker/nginx/default.conf` — reverse proxy → PHP-FPM via FastCGI
+- [x] `api` service healthcheck (`php pg_connect` probe of host Postgres). _Deviation (PLAN.md decision 6): replaces the removed `db` service's `pg_isready`._
+- [x] `backend/.env` + `.env.example` (dotted CI4 keys: `database.default.*`, `GOOGLE_ALLOWED_DOMAIN`, `APP_JWT_SECRET`). _`GOOGLE_CLIENT_ID` moved to the root `.env` (single source; compose injects it into api)._
+- [x] `frontend` env vars in compose: `NEXT_PUBLIC_API_BASE_URL` (build arg), `API_BASE_URL`, `AUTH_URL`, `AUTH_SECRET`, `AUTH_GOOGLE_ID`, `AUTH_GOOGLE_SECRET`
 
 ### Backend scaffold
-- [ ] `composer create-project codeigniter4/appstarter backend` (CI4 4.7.x)
-- [ ] `composer require firebase/php-jwt`
-- [ ] `app/Config/Cors.php` — configure `allowedOrigins` (never `*`), include `Authorization` in `allowedHeaders`
-- [ ] `app/Config/Filters.php` — register `cors` and `auth` filter aliases
-- [ ] Directory layout: `app/Controllers/Api/V1/`, `app/Filters/`, `app/Libraries/`, `app/Models/`, `app/Database/Migrations/`, `app/Database/Seeds/`
+- [x] `composer create-project codeigniter4/appstarter backend` (CI4 4.7.4)
+- [x] `composer require firebase/php-jwt`
+- [x] `app/Config/Cors.php` — configure `allowedOrigins` (never `*`), include `Authorization` in `allowedHeaders`
+- [x] `app/Config/Filters.php` — register `cors` and `auth` filter aliases (the `AuthFilter` class itself lands in Phase 1)
+- [x] Directory layout: `app/Controllers/Api/V1/`, `app/Filters/`, `app/Libraries/`, `app/Models/`, `app/Database/Migrations/`, `app/Database/Seeds/`
+- [x] `HealthController` + public `GET /api/v1/health` route (no auth) — liveness/readiness probe returning the standard envelope with DB status (`200` healthy / `503` DB unreachable)
 
 ### Frontend scaffold
-- [ ] `npx create-next-app` — Next.js 16, App Router, Node 24, Turbopack
-- [ ] Tailwind CSS v4 setup
-- [ ] shadcn/ui initialized (Dialog, Select, Command, Toast components copied in)
-- [ ] lucide-react installed
-- [ ] Geist Sans + Geist Mono fonts wired (Mono reserved for prompt `description` text)
-- [ ] Design tokens from `PLAN.md`'s Design system section (`--bg`, `--surface`, `--border`, `--text`, `--text-muted`, `--accent`, dark mode variants)
+- [x] `npx create-next-app` — Next.js 16, App Router, Node 24, Turbopack
+- [x] Tailwind CSS v4 setup
+- [x] shadcn/ui initialized (Nova preset)
+- [x] lucide-react installed
+- [x] Geist Sans + Geist Mono fonts wired (Mono reserved for prompt `description` text)
+- [x] Design tokens from `PLAN.md`'s Design system section (mapped onto shadcn variables in `globals.css`, light + dark) + next-themes `ThemeProvider`
 
 ### Database — all 9 migrations
-- [ ] `users` (google_sub, email, name, avatar_url, unique constraints)
-- [ ] `categories` (name, slug, icon, color)
-- [ ] `tags` (name, slug)
-- [ ] `roles` (name, slug)
-- [ ] `prompts` (title, description, notes, is_pinned, copy_count, created_by FK, soft-delete `deleted_at`)
-- [ ] `prompt_category` pivot (composite PK, cascading FKs)
-- [ ] `prompt_tag` pivot (composite PK, cascading FKs)
-- [ ] `prompt_role` pivot (composite PK, cascading FKs)
-- [ ] `prompt_versions` (prompt_id FK, title, description snapshot, edited_by, edited_at)
-- [ ] Indexes: `idx_prompts_title`, `idx_prompts_pinned` (partial, `WHERE is_pinned = TRUE`), pivot FK indexes, `idx_prompt_versions_prompt_id`
-- [ ] Seeders: categories (`Onboard`, `Understand`, `Plan`, `Prototype`, `Build`, `Test`, `Refactor`, `Review`, `Git`, `Release`, `Debug`, `Data`, `Automate`) and roles (`PM`, `Design`, `Docs`, `Marketing`, `Security`, `Ops`, `Data`)
+- [x] `users` (google_sub, email, name, avatar_url, unique constraints)
+- [x] `categories` (name, slug, icon, color)
+- [x] `tags` (name, slug)
+- [x] `roles` (name, slug)
+- [x] `prompts` (title, description, notes, is_pinned, copy_count, created_by FK, soft-delete `deleted_at`)
+- [x] `prompt_category` pivot (composite PK, cascading FKs)
+- [x] `prompt_tag` pivot (composite PK, cascading FKs)
+- [x] `prompt_role` pivot (composite PK, cascading FKs)
+- [x] `prompt_versions` (prompt_id FK, title, description snapshot, edited_by, edited_at)
+- [x] Indexes: `idx_prompts_title`, `idx_prompts_pinned` (partial, `WHERE is_pinned = TRUE`, raw DDL), pivot FK indexes, `idx_prompt_versions_prompt_id`
+- [x] Seeders: categories (`Onboard`, `Understand`, `Plan`, `Prototype`, `Build`, `Test`, `Refactor`, `Review`, `Git`, `Release`, `Debug`, `Data`, `Automate`) and roles (`PM`, `Design`, `Docs`, `Marketing`, `Security`, `Ops`, `Data`)
 
 ---
 

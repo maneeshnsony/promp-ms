@@ -332,6 +332,9 @@ backend/
 <?php
 // app/Config/Routes.php  (excerpt)
 
+// Public probe — monitors/load balancers must reach it without a token.
+$routes->get('api/v1/health', 'Api\V1\HealthController::index', ['filter' => 'cors']);
+
 // Login itself can't require a token to get a token.
 $routes->post('api/v1/auth/google', 'Api\V1\AuthController::google', ['filter' => 'cors']);
 
@@ -369,6 +372,7 @@ $routes->group('api/v1', ['namespace' => 'App\Controllers\Api\V1', 'filter' => [
 
 | Method | Endpoint | Auth? | Purpose |
 |---|---|---|---|
+| GET | `/api/v1/health` | No | Liveness/readiness probe — reports API + DB status in the standard envelope (`200` healthy, `503` if the DB is unreachable) |
 | POST | `/api/v1/auth/google` | No | Exchange a Google ID token for a Prompt Hub session token |
 | GET | `/api/v1/prompts?search=&category=&tag=&role=&pinned=&page=&per_page=` | Yes | List prompts, filterable, **paginated (default `per_page=20`)** |
 | GET | `/api/v1/prompts/{id}` | Yes | Single prompt with categories/tags/roles expanded |
@@ -1338,5 +1342,9 @@ Both Dockerfiles use multi-stage builds specifically so the shipped image is sma
 | 3 | Postgres version | **18.x** — Postgres has no MySQL-style LTS track; every major version gets 5 years of support, and 18 is the current stable one (19 is still in beta) | Tech stack, Docker setup |
 | 4 | Design system | Custom lightweight system: Tailwind v4 + shadcn/ui, Geist Sans/Mono, one teal accent | [Design system](#design-system) section |
 | 5 | Redis / pagination | **No Redis for now** (moved to Phase 4); pagination is required, **default page size 20** | Roadmap; `per_page` defaults to 20 throughout the API and UI |
+| 6 | Database hosting (2026-07-18, supersedes the Docker section's `db` service) | **Host-installed Postgres, not a container** — api connects to `host.docker.internal:5432`, database `prompt_ms`, user `postgres`; compose has no `db` service, and the api service carries a healthcheck probing the host DB | `docker-compose.yml` (4 services), `backend/.env` |
+| 7 | Naming (2026-07-18) | Containers `prompt-ms-*`, network `prompt_ms_net`, database `prompt_ms` — not the `prompthub_*` names shown in the Docker section's YAML | `docker-compose.yml` |
+| 8 | Auto-increment ids (2026-07-18) | **BIGSERIAL** (CI4 Postgre Forge's idiom) accepted instead of this doc's `GENERATED ALWAYS AS IDENTITY` — functionally equivalent for app writes; revisit only if bulk imports with explicit ids arrive (Phase 4) | All 6 `id` columns in the live schema |
+| 9 | pgadmin service (2026-07-18) | **Removed** — nothing depends on it (the api talks to host Postgres directly), it wasn't auto-wired to the DB, and any host client (`psql`, DBeaver) already reaches `host.docker.internal:5432`. Supersedes the `pgadmin` service in the Docker section's YAML | `docker-compose.yml` (3 services), root `.env.example` (no `PGADMIN_PASSWORD`) |
 
 Also carried over from your first message: PHP now installs as precompiled Alpine packages rather than compiling extensions at image-build time (see [Docker setup](#docker-setup)), and every "optional enhancement" from round one is approved and built into the schema/roadmap above.

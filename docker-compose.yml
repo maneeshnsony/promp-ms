@@ -1,0 +1,65 @@
+services:
+  api:
+    build:
+      context: ./backend
+    container_name: prompt-ms-api
+    restart: unless-stopped
+    volumes:
+      - ./backend:/var/www/html
+      # The image's composer-built vendor/ must win over the bind mount — vendor/ is git- and
+      # docker-ignored, so a fresh clone has none on the host. After changing composer.json/lock:
+      #   docker compose build api && docker compose up -d --force-recreate --renew-anon-volumes api
+      - /var/www/html/vendor
+    env_file: ./backend/.env
+    environment:
+      # Single source of truth: root .env — the same value feeds web's AUTH_GOOGLE_ID below.
+      # `environment` overrides any env_file copy, so the api's `aud` check can never drift.
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+    extra_hosts:
+      - "host.docker.internal:host-gateway" # no-op on Docker Desktop, needed on Linux
+    healthcheck:
+      # Postgres runs on the host, outside compose — probe it from here so a stopped or
+      # unreachable host DB surfaces as an unhealthy api instead of silent request failures.
+      test: ["CMD", "php", "-r", "exit(@pg_connect('host='.getenv('database.default.hostname').' port='.getenv('database.default.port').' dbname='.getenv('database.default.database').' user='.getenv('database.default.username').' password='.getenv('database.default.password')) ? 0 : 1);"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    networks: [prompt_ms_net]
+
+  nginx:
+    image: nginx:1.27-alpine
+    container_name: prompt-ms-nginx
+    restart: unless-stopped
+    ports: ["8080:80"]
+    volumes:
+      # Only the web root — keeps backend/.env and app source out of the edge container.
+      - ./backend/public:/var/www/html/public:ro
+      - ./docker/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on: [api]
+    networks: [prompt_ms_net]
+
+  web:
+    build:
+      context: ./frontend
+      args:
+        # NEXT_PUBLIC_* is inlined into the client bundle at `next build` — it must arrive
+        # as a build arg; a runtime env var alone never reaches browser code.
+        NEXT_PUBLIC_API_BASE_URL: "http://localhost:8080/api/v1"
+    container_name: prompt-ms-web
+    restart: unless-stopped
+    ports: ["3000:3000"]
+    environment:
+      NEXT_PUBLIC_API_BASE_URL: "http://localhost:8080/api/v1"  # baked at build; kept for server-side reads
+      API_BASE_URL: "http://nginx/api/v1"                       # server-side calls, container-to-container
+      AUTH_URL: "http://localhost:3000"
+      # Optional until Auth.js lands in Phase 1 — set real values in the root .env then.
+      AUTH_SECRET: ${AUTH_SECRET:-}
+      AUTH_GOOGLE_ID: ${GOOGLE_CLIENT_ID:-}
+      AUTH_GOOGLE_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+    depends_on: [api]
+    networks: [prompt_ms_net]
+
+networks:
+  prompt_ms_net:
+    driver: bridge
