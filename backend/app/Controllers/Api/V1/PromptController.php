@@ -190,6 +190,11 @@ class PromptController extends ResourceController
             $prompt['categories'] = $categoriesByPrompt[$prompt['id']] ?? [];
             $prompt['tags']       = $tagsByPrompt[$prompt['id']] ?? [];
             $prompt['roles']      = $rolesByPrompt[$prompt['id']] ?? [];
+            // pdo_pgsql returns boolean/bigint columns as the strings "t"/"f" and "123", not
+            // native JSON types — left as-is, "is_pinned":"f" round-trips as a truthy string
+            // in JS. Every prompt response passes through here, so it's the one place to fix it.
+            $prompt['is_pinned']  = in_array($prompt['is_pinned'], [true, 't', '1', 1], true);
+            $prompt['copy_count'] = (int) $prompt['copy_count'];
         }
 
         return $prompts;

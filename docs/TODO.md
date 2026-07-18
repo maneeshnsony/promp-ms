@@ -84,17 +84,21 @@ Prompts, categories, tags, roles, Google sign-in.
 - [x] Every response follows the envelope: `{ "status": "success"|"error", "data": ..., "meta"?: {...}, "message"?: "..." }`
 - [x] `app/Config/Routes.php` — protected `api/v1` group populated with all prompt/category/tag/role routes under `['cors', 'auth']`
 
-### Frontend — dashboard MVP
-- [ ] `lib/types.ts` — `Category`, `Tag`, `Role`, `Prompt` interfaces
-- [ ] `lib/api.ts` — fetch wrapper; server-side calls use `API_BASE_URL` (Docker service name via nginx), client-side calls use `NEXT_PUBLIC_API_BASE_URL`
-- [ ] `components/prompt-card.tsx` — copy button (Clipboard API + `execCommand` fallback), pinned marker, expandable "why this works" notes, category/tag badges
-- [ ] `components/category-badge.tsx`
-- [ ] `components/tag-chip.tsx`
-- [ ] `components/prompt-form-dialog.tsx` — create/edit form (title, description, notes, category/tag/role pickers)
-- [ ] `components/pagination.tsx` — Previous/Next, writes `page` to URL query string
-- [ ] `app/page.tsx` — Server Component dashboard: fetch prompts with session token, render card grid + pagination
-- [ ] `app/layout.tsx`
-- [ ] Copy-to-clipboard wired to `POST /prompts/{id}/copy` (fire-and-forget, never blocks the actual copy)
+### Frontend — dashboard MVP ✅ Complete (per `docs/PHASE1-FRONTEND-DASHBOARD-PLAN.md`; verified end-to-end via a local dev server + Playwright against the live backend — see that plan's Verification section, all 6 steps passed)
+- [x] `lib/types.ts` — `Category`, `Tag`, `Role`, `Prompt`, `Paginated<T>`, `PromptFormValues` interfaces
+- [x] `lib/api.ts` — typed helpers (`getPrompts`, `createPrompt`, `updatePrompt`, `deletePrompt`, `getCategories`, `getTags`, `getRoles`) built on the existing `apiFetch`; server-side calls use `API_BASE_URL`, client-side use `NEXT_PUBLIC_API_BASE_URL`
+- [x] `lib/actions.ts` (new) — Server Actions (`trackCopyAction`, `createPromptAction`, `updatePromptAction`) so writes triggered from client components (`PromptCard`, `PromptFormDialog`) still resolve `auth()` server-side and attach the bearer token — closes the gap `apiFetch` has on the client, documented in the plan's Context section
+- [x] `components/prompt-card.tsx` — copy button (Clipboard API + `execCommand` fallback), pinned marker, expandable "why this works" notes, category/tag badges, hover-revealed edit action
+- [x] `components/category-badge.tsx` — desaturated round-robin palette by category id, falls back to an explicit `color` field when set; optional `icon` via a small curated lucide-react map
+- [x] `components/tag-chip.tsx` — plain neutral badge, no color
+- [x] `components/multi-select.tsx` (new) — shared Command-based multi-select for category/tag/role pickers (no Popover component installed, so it renders inline rather than behind a trigger)
+- [x] `components/prompt-form-dialog.tsx` — create/edit form (title, description, notes, category/tag/role pickers), plain controlled state (no react-hook-form — not an installed dependency)
+- [x] `components/pagination.tsx` — Previous/Next, writes `page` to URL query string
+- [x] `components/ui/badge.tsx`, `components/ui/card.tsx` (new) — hand-authored shadcn-style primitives matching the existing `radix-nova` component conventions (no network-dependent `npx shadcn add`)
+- [x] `app/page.tsx` — Server Component dashboard: fetch prompts + categories/tags/roles in parallel, render card grid + pagination + "New prompt" dialog trigger
+- [x] `app/layout.tsx` — wired `<Toaster />` from `sonner` for save/error toasts
+- [x] Copy-to-clipboard wired to `POST /prompts/{id}/copy` (fire-and-forget, never blocks the actual copy) via `trackCopyAction`
+- [x] Bug found and fixed during verification: `PromptController::attachRelations()` (backend) — pdo_pgsql returns boolean/bigint columns as the strings `"t"`/`"f"`/`"123"`, not native JSON types, so `is_pinned:"f"` round-tripped as truthy in JS and showed the pinned marker on every prompt; now cast to a real bool/int before the response is built, with a regression test
 
 ---
 
@@ -139,12 +143,13 @@ Do not build ahead into this phase without being explicitly asked.
 Apply throughout implementation, not tied to a single phase.
 
 ### Testing
-- [ ] Backend: PHPUnit feature tests hitting `/api/v1/prompts` end-to-end, including the no-bearer-token 401 case
-- [ ] Backend: unit tests for `PromptModel` validation and pivot-sync logic
+- [x] Backend: PHPUnit feature tests hitting `/api/v1/prompts` end-to-end, including the no-bearer-token 401 case — `tests/unit/PromptControllerTest.php` (index/show/create/update/delete/trackCopy/versions, pagination ordering, pivot-sync null-means-untouched, the `is_pinned`/`copy_count` JSON-type regression test)
+- [x] Backend: unit tests for `PromptModel` validation and pivot-sync logic — `tests/unit/PromptModelTest.php` (`scopeFilters` search/pinned filters, required-field validation) plus pivot-sync coverage in `PromptControllerTest.php`
 - [x] Backend: `AuthFilter`/`AuthContext`/`AuthController`/`UserModel` covered — `tests/unit/{AuthFilterTest,AuthContextTest,AuthControllerTest,UserModelTest}.php`: missing/garbage/expired/valid bearer token, `SKIP_AUTH` bypass on and off, `AuthController::google`'s missing-`id_token` (400) and malformed-token (401) paths, `UserModel::upsertFromGoogle` create-then-update by `google_sub`. _Not yet covered: a real Google-signed token with a mismatched `aud` — would need a mocked JWKS response rather than a live fetch to test deterministically._
-- [ ] Frontend: Vitest + React Testing Library for `PromptCard`, `Pagination`, filters
-- [ ] Frontend: Playwright E2E — sign in → create prompt → see card → click copy → clipboard holds description → `copy_count` increments
-- [ ] CI: run `composer test` and `npm test` on every PR, plus `docker compose build`. _`composer test` currently exits 1 on a fresh host even with all tests green — `phpunit.dist.xml`'s `failOnWarning="true"` trips on "No code coverage driver available" when Xdebug/PCOV isn't installed; a CI image needs one of those, or drop `failOnWarning`._
+- [x] Backend: `CategoryController`/`TagController`/`RoleController` covered — `tests/unit/{CategoryControllerTest,TagControllerTest,RoleControllerTest}.php` (401 without a token, create/update/delete, duplicate-slug validation)
+- [ ] Frontend: Vitest + React Testing Library for `PromptCard`, `Pagination`, filters — not set up; the dashboard MVP was instead verified manually via a local dev server driven with Playwright (create → card renders with badges, copy → clipboard + `copy_count`, edit without touching categories → categories unchanged + version snapshot, pagination bounds/URL, light/dark theme), matching `PHASE1-FRONTEND-DASHBOARD-PLAN.md`'s Verification section. No committed automated frontend test suite yet.
+- [ ] Frontend: Playwright E2E — sign in → create prompt → see card → click copy → clipboard holds description → `copy_count` increments. _Manually verified (see above); not yet a committed, repeatable E2E suite/skill._
+- [ ] CI: run `composer test` and `npm test` on every PR, plus `docker compose build`. _No CI workflow exists yet. `composer test` on a bare host still exits 1 even with all tests green (`failOnWarning="true"` trips on "No code coverage driver available" without Xdebug/PCOV) — the `unittest-backend` skill (`.claude/skills/`) works around this for local runs, and `backend/Dockerfile.test` + the profile-gated `api-test` compose service give a container with `php84-pecl-pcov` installed for when a CI workflow is added._
 
 ### Security & non-functional
 - [ ] Verify every Google ID token server-side (signature via JWKS, `aud`, optional `hd`) — never trust unverified claims

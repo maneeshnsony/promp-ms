@@ -136,6 +136,25 @@ final class PromptControllerTest extends CIUnitTestCase
         $this->seeInDatabase('prompt_category', ['prompt_id' => $body['data']['id'], 'category_id' => $ids['category']]);
     }
 
+    public function testResponseUsesNativeJsonTypesNotPostgresStrings(): void
+    {
+        // pdo_pgsql returns boolean/bigint columns as the strings "t"/"f" and "123" rather
+        // than native types; attachRelations() must cast them back before the JSON response
+        // is built, or a client-side `prompt.is_pinned && ...` check treats "f" as truthy.
+        $result = $this->withHeaders($this->authHeader())
+            ->withBodyFormat('json')
+            ->post('api/v1/prompts', [
+                'title'       => self::TITLE_PREFIX . ' Types',
+                'description' => 'desc',
+            ]);
+
+        $result->assertStatus(201);
+        $raw = json_decode($result->getJSON(), true);
+
+        $this->assertSame(false, $raw['data']['is_pinned'], 'is_pinned must serialize as a JSON boolean, not "f"');
+        $this->assertSame(0, $raw['data']['copy_count'], 'copy_count must serialize as a JSON number, not a numeric string');
+    }
+
     public function testShowReturns404ForMissingPrompt(): void
     {
         $result = $this->withHeaders($this->authHeader())->get('api/v1/prompts/999999');
