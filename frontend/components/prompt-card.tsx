@@ -1,15 +1,35 @@
 "use client";
 
 import { useState } from "react";
-import { Copy, Check, Pin, Info, Pencil } from "lucide-react";
+import { Copy, Check, Pin, Info, Pencil, History, Trash2 } from "lucide-react";
+import { toast } from "sonner";
 
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { CategoryBadge } from "@/components/category-badge";
 import { TagChip } from "@/components/tag-chip";
 import { PromptFormDialog } from "@/components/prompt-form-dialog";
-import { trackCopyAction } from "@/lib/actions";
+import { SlotFillDialog } from "@/components/slot-fill-dialog";
+import { VersionHistoryDialog } from "@/components/version-history-dialog";
+import { deletePromptAction, trackCopyAction } from "@/lib/actions";
+import { extractSlots } from "@/lib/slots";
 import type { Category, Prompt, Role, Tag } from "@/lib/types";
+
+async function writeClipboard(text: string) {
+  try {
+    await navigator.clipboard.writeText(text);
+  } catch {
+    // Fallback for browsers/contexts without the Clipboard API.
+    const el = document.createElement("textarea");
+    el.value = text;
+    el.style.position = "fixed";
+    el.style.opacity = "0";
+    document.body.appendChild(el);
+    el.select();
+    document.execCommand("copy");
+    document.body.removeChild(el);
+  }
+}
 
 export function PromptCard({
   prompt,
@@ -24,24 +44,44 @@ export function PromptCard({
 }) {
   const [copied, setCopied] = useState(false);
   const [showNotes, setShowNotes] = useState(false);
+  const [slotDialogOpen, setSlotDialogOpen] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
-  async function handleCopy() {
-    try {
-      await navigator.clipboard.writeText(prompt.description);
-    } catch {
-      // Fallback for browsers/contexts without the Clipboard API.
-      const el = document.createElement("textarea");
-      el.value = prompt.description;
-      el.style.position = "fixed";
-      el.style.opacity = "0";
-      document.body.appendChild(el);
-      el.select();
-      document.execCommand("copy");
-      document.body.removeChild(el);
-    }
+  const slots = extractSlots(prompt.description);
+
+  function markCopied() {
     setCopied(true);
     setTimeout(() => setCopied(false), 1500);
     void trackCopyAction(prompt.id); // fire-and-forget — never blocks the copy feedback
+  }
+
+  async function handleCopyClick() {
+    if (slots.length > 0) {
+      setSlotDialogOpen(true);
+      return;
+    }
+    await writeClipboard(prompt.description);
+    markCopied();
+  }
+
+  async function handleSlotCopy(filledText: string) {
+    await writeClipboard(filledText);
+    setSlotDialogOpen(false);
+    markCopied();
+  }
+
+  async function handleDelete() {
+    if (!confirm(`Delete "${prompt.title}"? This can't be undone.`)) return;
+
+    setDeleting(true);
+    try {
+      await deletePromptAction(prompt.id);
+      toast.success("Prompt deleted.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to delete prompt.");
+      setDeleting(false);
+    }
   }
 
   return (
@@ -74,8 +114,27 @@ export function PromptCard({
               </Button>
             }
           />
-          <Button variant="ghost" size="icon-sm" aria-label="Copy prompt to clipboard" onClick={handleCopy}>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            aria-label="View version history"
+            className="opacity-0 group-hover:opacity-100"
+            onClick={() => setHistoryOpen(true)}
+          >
+            <History size={16} />
+          </Button>
+          <Button variant="ghost" size="icon-sm" aria-label="Copy prompt to clipboard" onClick={handleCopyClick}>
             {copied ? <Check size={16} className="text-emerald-600" /> : <Copy size={16} />}
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            aria-label="Delete prompt"
+            className="opacity-0 group-hover:opacity-100"
+            disabled={deleting}
+            onClick={handleDelete}
+          >
+            <Trash2 size={16} />
           </Button>
         </div>
       </CardHeader>
@@ -109,6 +168,15 @@ export function PromptCard({
           ))}
         </CardFooter>
       )}
+
+      <SlotFillDialog
+        open={slotDialogOpen}
+        onOpenChange={setSlotDialogOpen}
+        description={prompt.description}
+        slots={slots}
+        onCopy={handleSlotCopy}
+      />
+      <VersionHistoryDialog promptId={prompt.id} open={historyOpen} onOpenChange={setHistoryOpen} />
     </Card>
   );
 }

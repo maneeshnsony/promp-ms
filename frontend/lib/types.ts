@@ -59,6 +59,13 @@ export interface PromptFormValues {
   role_ids?: number[];
 }
 
+export interface PromptVersion {
+  id: number;
+  title: string;
+  description: string;
+  edited_at: string;
+}
+
 declare module "next-auth" {
   interface Session {
     backendToken?: string;

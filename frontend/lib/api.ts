@@ -1,5 +1,5 @@
 import { auth } from "@/auth";
-import type { Category, Paginated, Prompt, PromptFormValues, Role, Tag } from "@/lib/types";
+import type { Category, Paginated, Prompt, PromptFormValues, PromptVersion, Role, Tag } from "@/lib/types";
 
 const skipAuth = process.env.NEXT_PUBLIC_SKIP_AUTH === "true";
 
@@ -94,3 +94,47 @@ export async function getRoles(): Promise<Role[]> {
   const res = await apiFetch("/roles", { cache: "no-store" });
   return unwrap<Role[]>(res);
 }
+
+export async function getPromptVersions(id: number): Promise<PromptVersion[]> {
+  const res = await apiFetch(`/prompts/${id}/versions`, { cache: "no-store" });
+  return unwrap<PromptVersion[]>(res);
+}
+
+export interface EntityInput {
+  name: string;
+  slug: string;
+  icon?: string;
+  color?: string;
+}
+
+function entityCrud<T>(resource: "categories" | "tags" | "roles") {
+  return {
+    create: async (body: EntityInput): Promise<T> => {
+      const res = await apiFetch(`/${resource}`, { method: "POST", body: JSON.stringify(body) });
+      return unwrap<T>(res);
+    },
+    update: async (id: number, body: Partial<EntityInput>): Promise<T> => {
+      const res = await apiFetch(`/${resource}/${id}`, { method: "PUT", body: JSON.stringify(body) });
+      return unwrap<T>(res);
+    },
+    delete: async (id: number): Promise<void> => {
+      const res = await apiFetch(`/${resource}/${id}`, { method: "DELETE" });
+      if (!res.ok) throw new Error(`Failed to delete (${res.status})`);
+    },
+  };
+}
+
+const categoryCrud = entityCrud<Category>("categories");
+export const createCategory = categoryCrud.create;
+export const updateCategory = categoryCrud.update;
+export const deleteCategory = categoryCrud.delete;
+
+const tagCrud = entityCrud<Tag>("tags");
+export const createTag = tagCrud.create;
+export const updateTag = tagCrud.update;
+export const deleteTag = tagCrud.delete;
+
+const roleCrud = entityCrud<Role>("roles");
+export const createRole = roleCrud.create;
+export const updateRole = roleCrud.update;
+export const deleteRole = roleCrud.delete;

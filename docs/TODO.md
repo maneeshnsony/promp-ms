@@ -102,29 +102,27 @@ Prompts, categories, tags, roles, Google sign-in.
 
 ---
 
-## Phase 2 — Discovery & polish
+## Phase 2 — Discovery & polish ✅ Complete (per `docs/PHASE2-DISCOVERY-POLISH-PLAN.md`)
 
 Search, filtering, curation.
 
-- [ ] `components/search-bar.tsx` — debounced, writes `search` to URL query string
-- [ ] `components/filter-sidebar.tsx` — category/tag/role multi-select, writes to URL query string
-- [ ] Pinned "Start here" row (curated view of `is_pinned = true` prompts)
-- [ ] Toast notifications (shadcn/ui) for save/delete confirmations
-- [ ] Empty states (no prompts / no search results)
-- [ ] Loading states (skeletons or spinners for Server Component fetches)
-- [ ] `app/categories/page.tsx` — manage categories UI
-- [ ] `app/tags/page.tsx` — manage tags UI
-- [ ] `app/roles/page.tsx` — manage roles UI
+- [x] `components/search-bar.tsx` — debounced (300ms), writes `search` to URL query string and resets `page` to 1
+- [x] `components/filter-sidebar.tsx` — single-select-per-facet category/tag/role filters (scope decision documented in the phase plan), writes to URL query string independently per facet
+- [x] Pinned "Start here" row — `components/pinned-row.tsx`, server-rendered, only shown when no filters are active and at least one pinned prompt exists
+- [x] Toast notifications (sonner) for prompt create/update/delete and category/tag/role create/update/delete
+- [x] Empty states — `components/empty-state.tsx`: distinct copy for "no prompts at all" vs "search/filters active, zero matches" (with a clear-filters action)
+- [x] Loading states — `app/loading.tsx`, automatic Suspense boundary with skeleton cards matching the grid layout
+- [x] `app/categories/page.tsx`, `app/tags/page.tsx`, `app/roles/page.tsx` — management UIs built on a shared `components/entity-manager.tsx` (list, inline create/rename via dialog, confirm-before-delete), backed by new `lib/api.ts` CRUD helpers and `lib/actions.ts` Server Actions
 
 ---
 
-## Phase 3 — Deeper enhancements
+## Phase 3 — Deeper enhancements ✅ Complete (per `docs/PHASE3-DEEPER-ENHANCEMENTS-PLAN.md`)
 
 The richer approved features.
 
-- [ ] `{slot}` placeholder detection — regex `/\{(\w+)\}/g` over `description`
-- [ ] `SlotFillDialog` — one input per unique token; copies description with tokens substituted, opens instead of the direct copy when placeholders are present
-- [ ] Prompt version history view — UI for `GET /api/v1/prompts/{id}/versions`
+- [x] `{slot}` placeholder detection — `lib/slots.ts`'s `extractSlots`/`fillSlots`, regex `/\{(\w+)\}/g` over `description`
+- [x] `components/slot-fill-dialog.tsx` — one input per unique token in first-seen order, live preview, Copy disabled until every slot is filled; wired into `prompt-card.tsx`'s copy-button click handler (opens instead of direct copy only when slots are present)
+- [x] `components/version-history-dialog.tsx` — read-only view over `GET /api/v1/prompts/{id}/versions`, newest first, relative timestamps via `Intl.RelativeTimeFormat`, loading skeleton + error toast + "No edits yet" empty state; opened from a new History action on `prompt-card.tsx`
 
 ---
 
@@ -145,20 +143,21 @@ Apply throughout implementation, not tied to a single phase.
 ### Testing
 - [x] Backend: PHPUnit feature tests hitting `/api/v1/prompts` end-to-end, including the no-bearer-token 401 case — `tests/unit/PromptControllerTest.php` (index/show/create/update/delete/trackCopy/versions, pagination ordering, pivot-sync null-means-untouched, the `is_pinned`/`copy_count` JSON-type regression test)
 - [x] Backend: unit tests for `PromptModel` validation and pivot-sync logic — `tests/unit/PromptModelTest.php` (`scopeFilters` search/pinned filters, required-field validation) plus pivot-sync coverage in `PromptControllerTest.php`
-- [x] Backend: `AuthFilter`/`AuthContext`/`AuthController`/`UserModel` covered — `tests/unit/{AuthFilterTest,AuthContextTest,AuthControllerTest,UserModelTest}.php`: missing/garbage/expired/valid bearer token, `SKIP_AUTH` bypass on and off, `AuthController::google`'s missing-`id_token` (400) and malformed-token (401) paths, `UserModel::upsertFromGoogle` create-then-update by `google_sub`. _Not yet covered: a real Google-signed token with a mismatched `aud` — would need a mocked JWKS response rather than a live fetch to test deterministically._
+- [x] Backend: `AuthFilter`/`AuthContext`/`AuthController`/`UserModel` covered — `tests/unit/{AuthFilterTest,AuthContextTest,AuthControllerTest,UserModelTest}.php`: missing/garbage/expired/valid bearer token, `SKIP_AUTH` bypass on and off, `AuthController::google`'s missing-`id_token` (400) and malformed-token (401) paths, `UserModel::upsertFromGoogle` create-then-update by `google_sub`. Mismatched-`aud` case now covered too — `tests/unit/AuthControllerJwksTest.php`, using a fixture RSA keypair swapped in via `AuthController::googleJwks()` (now an overridable protected method) instead of a live JWKS fetch.
 - [x] Backend: `CategoryController`/`TagController`/`RoleController` covered — `tests/unit/{CategoryControllerTest,TagControllerTest,RoleControllerTest}.php` (401 without a token, create/update/delete, duplicate-slug validation)
-- [ ] Frontend: Vitest + React Testing Library for `PromptCard`, `Pagination`, filters — not set up; the dashboard MVP was instead verified manually via a local dev server driven with Playwright (create → card renders with badges, copy → clipboard + `copy_count`, edit without touching categories → categories unchanged + version snapshot, pagination bounds/URL, light/dark theme), matching `PHASE1-FRONTEND-DASHBOARD-PLAN.md`'s Verification section. No committed automated frontend test suite yet.
-- [ ] Frontend: Playwright E2E — sign in → create prompt → see card → click copy → clipboard holds description → `copy_count` increments. _Manually verified (see above); not yet a committed, repeatable E2E suite/skill._
-- [ ] CI: run `composer test` and `npm test` on every PR, plus `docker compose build`. _No CI workflow exists yet. `composer test` on a bare host still exits 1 even with all tests green (`failOnWarning="true"` trips on "No code coverage driver available" without Xdebug/PCOV) — the `unittest-backend` skill (`.claude/skills/`) works around this for local runs, and `backend/Dockerfile.test` + the profile-gated `api-test` compose service give a container with `php84-pecl-pcov` installed for when a CI workflow is added._
+- [x] Backend: `RateLimitFilter` covered — `tests/unit/RateLimitFilterTest.php` (normal traffic passes, exceeding the per-minute threshold returns 429, `SKIP_RATE_LIMIT` bypass)
+- [x] Frontend: Vitest + React Testing Library set up (`vitest.config.ts`, `vitest.setup.ts`, `npm test`) with tests co-located next to the components they cover: `components/pagination.test.tsx`, `components/search-bar.test.tsx`, `components/filter-sidebar.test.tsx`, `components/prompt-card.test.tsx` (direct-copy path, slot-fill-dialog open/disable/copy behavior). All passing.
+- [ ] Frontend: Playwright E2E — sign in → create prompt → see card → click copy → clipboard holds description → `copy_count` increments. Manually verified via the `unittest-frontend` skill's Python/Playwright script; not yet a committed `@playwright/test` suite wired into CI (left as a follow-up — the skill script covers the same flow today).
+- [x] CI: `.github/workflows/ci.yml` — `composer test` (with a Postgres service container + PCOV via `shivammathur/setup-php`), `npm run lint` + `npm test` + `npm run build` (frontend), and `docker compose build`, all on PR and push to `main`.
 
 ### Security & non-functional
-- [ ] Verify every Google ID token server-side (signature via JWKS, `aud`, optional `hd`) — never trust unverified claims
-- [ ] Keep backend session JWT short-lived (1h) with minimal payload (user id, email only)
-- [ ] `AuthFilter` remains the real enforcement point — Next.js middleware stays UX-only
-- [ ] CodeIgniter Query Builder everywhere — no raw SQL string concatenation
-- [ ] Never route prompt content through `dangerouslySetInnerHTML`
-- [ ] `Cors.php` `allowedOrigins` restricted to real frontend origin(s) in production — never `*`
-- [ ] Rate-limit write endpoints and `/auth/google` (CI4 Throttler or Nginx `limit_req`)
-- [ ] Serve over HTTPS outside local dev (required for Google OAuth redirect URIs)
-- [ ] Secrets (`AUTH_SECRET`, `GOOGLE_CLIENT_SECRET`, `APP_JWT_SECRET`, DB password) kept in git-ignored `.env` files; commit `.env.example` instead
-- [ ] Automate PostgreSQL backups (`pg_dump` cron or managed-DB snapshots) once real data accumulates
+- [x] Verify every Google ID token server-side (signature via JWKS, `aud`, optional `hd`) — never trust unverified claims. Verified existing behavior; JWKS source is now swappable for testing (see above) without changing production behavior.
+- [x] Keep backend session JWT short-lived (1h) with minimal payload (user id, email only) — verified, unchanged.
+- [x] `AuthFilter` remains the real enforcement point — Next.js middleware stays UX-only — verified, unchanged.
+- [x] CodeIgniter Query Builder everywhere — no raw SQL string concatenation — verified across existing and new controllers (category/tag/role management, entity CRUD).
+- [x] Never route prompt content through `dangerouslySetInnerHTML` — verified, still true of every Phase 2/3 component added (`SlotFillDialog`, `VersionHistoryDialog`, `EntityManager`).
+- [x] `Cors.php` `allowedOrigins` restricted to real frontend origin(s) in production — never `*` — verified, unchanged. Update the list again once a real production frontend origin is known (deploy-time config, not a code task).
+- [x] Rate-limit write endpoints and `/auth/google` — `App\Filters\RateLimitFilter` (CI4's built-in `Throttler`, 60 req/min per authenticated user id or IP), applied to all `POST`/`PUT`/`DELETE` routes under `api/v1` and to `auth/google` in `app/Config/Routes.php`. `SKIP_RATE_LIMIT=true` bypasses it the same way `SKIP_AUTH` bypasses auth, for local/dev use.
+- [ ] Serve over HTTPS outside local dev (required for Google OAuth redirect URIs) — pure deployment/infra config, not a code change in this repo.
+- [x] Secrets (`AUTH_SECRET`, `GOOGLE_CLIENT_SECRET`, `APP_JWT_SECRET`, DB password) kept in git-ignored `.env` files; commit `.env.example` instead — verified, unchanged.
+- [ ] Automate PostgreSQL backups (`pg_dump` cron or managed-DB snapshots) once real data accumulates — infra/ops runbook item, not application code.

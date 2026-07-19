@@ -26,3 +26,6 @@ frontend/.env*
 Thumbs.db
 .vscode/
 .idea/
+
+# Local-only scratch docs
+docs/local/

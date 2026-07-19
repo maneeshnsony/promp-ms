@@ -27,8 +27,7 @@ class AuthController extends BaseController
         }
 
         try {
-            $jwks = json_decode(file_get_contents('https://www.googleapis.com/oauth2/v3/certs'), true);
-            $keys = JWK::parseKeySet($jwks);
+            $keys = $this->googleJwks();
             $claims = JWT::decode($idToken, $keys);
         } catch (Throwable $e) {
             log_message('error', 'Google ID token verification failed: {message}', ['message' => $e->getMessage()]);
@@ -75,5 +74,19 @@ class AuthController extends BaseController
                 'user'  => $user,
             ],
         ], ResponseInterface::HTTP_OK);
+    }
+
+    /**
+     * Fetches and parses Google's live JWKS. Overridden in tests (a subclass swaps in a
+     * fixture keyset) since a mismatched-`aud` scenario needs a deterministic, mockable
+     * key source rather than a live network fetch — see docs/CROSS-CUTTING-ONGOING-PLAN.md.
+     *
+     * @return array<string, \Firebase\JWT\Key>
+     */
+    protected function googleJwks(): array
+    {
+        $jwks = json_decode(file_get_contents('https://www.googleapis.com/oauth2/v3/certs'), true);
+
+        return JWK::parseKeySet($jwks);
     }
 }
