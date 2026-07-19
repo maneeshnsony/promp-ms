@@ -12,6 +12,15 @@ $routes->get('api/v1/health', 'Api\V1\HealthController::index', ['filter' => 'co
 // Rate-limited (keyed by IP, since there's no authenticated user yet at this point).
 $routes->post('api/v1/auth/google', 'Api\V1\AuthController::google', ['filter' => ['cors', 'ratelimit']]);
 
+// Browser CORS preflight (OPTIONS) for any api/v1 path. Without this, an OPTIONS request
+// to a route that only registers GET/POST/etc. 404s at the router before the 'cors' filter
+// ever runs, so no Access-Control-Allow-Origin header is sent and the browser blocks the
+// real request — this bit VersionHistoryDialog's direct client-side fetch to
+// prompts/(:num)/versions (see docs/PHASE3-DEEPER-ENHANCEMENTS-PLAN.md).
+$routes->options('api/v1/(:any)', static function () {
+    return service('response')->setStatusCode(204);
+}, ['filter' => 'cors']);
+
 // Protected group — CRUD routes. Write methods (POST/PUT/DELETE) are additionally
 // rate-limited (keyed by user id once AuthFilter has run) per
 // docs/CROSS-CUTTING-ONGOING-PLAN.md.

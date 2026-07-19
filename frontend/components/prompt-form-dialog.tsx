@@ -16,8 +16,15 @@ import {
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { MultiSelect } from "@/components/multi-select";
-import { createPromptAction, updatePromptAction } from "@/lib/actions";
+import {
+  createCategoryAction,
+  createPromptAction,
+  createRoleAction,
+  createTagAction,
+  updatePromptAction,
+} from "@/lib/actions";
 import type { Category, Prompt, Role, Tag } from "@/lib/types";
+import { slugify } from "@/lib/utils";
 
 interface PromptFormDialogProps {
   mode: "create" | "edit";
@@ -43,12 +50,18 @@ export function PromptFormDialog({ mode, prompt, categories, tags, roles, trigge
   const [open, setOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [values, setValues] = useState(() => emptyState(prompt));
+  const [categoryOptions, setCategoryOptions] = useState(categories);
+  const [tagOptions, setTagOptions] = useState(tags);
+  const [roleOptions, setRoleOptions] = useState(roles);
 
   function handleOpenChange(next: boolean) {
     setOpen(next);
     if (next) {
       // Re-sync from the latest prompt (edit) or blank out (create) each time it opens.
       setValues(emptyState(prompt));
+      setCategoryOptions(categories);
+      setTagOptions(tags);
+      setRoleOptions(roles);
     }
   }
 
@@ -92,11 +105,11 @@ export function PromptFormDialog({ mode, prompt, categories, tags, roles, trigge
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>{mode === "create" ? "New prompt" : "Edit prompt"}</DialogTitle>
-          <DialogDescription>
-            {mode === "create"
-              ? "Add a prompt to the library."
-              : "Update this prompt — the previous title and description are kept in its version history."}
-          </DialogDescription>
+          {mode === "edit" && (
+            <DialogDescription>
+              Update this prompt — the previous title and description are kept in its version history.
+            </DialogDescription>
+          )}
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="flex max-h-[70vh] flex-col gap-4 overflow-y-auto px-1">
@@ -118,7 +131,8 @@ export function PromptFormDialog({ mode, prompt, categories, tags, roles, trigge
             </label>
             <Textarea
               id="prompt-description"
-              className="min-h-32 font-mono"
+              className="h-24 resize-none font-mono"
+              rows={4}
               value={values.description}
               onChange={(e) => setValues((v) => ({ ...v, description: e.target.value }))}
               required
@@ -129,7 +143,7 @@ export function PromptFormDialog({ mode, prompt, categories, tags, roles, trigge
             <label htmlFor="prompt-notes" className="text-sm font-medium text-foreground">
               Notes <span className="font-normal text-muted-foreground">(optional — &quot;why this works&quot;)</span>
             </label>
-            <Textarea
+            <Input
               id="prompt-notes"
               value={values.notes}
               onChange={(e) => setValues((v) => ({ ...v, notes: e.target.value }))}
@@ -138,21 +152,38 @@ export function PromptFormDialog({ mode, prompt, categories, tags, roles, trigge
 
           <MultiSelect
             label="Categories"
-            options={categories}
+            options={categoryOptions}
             selected={values.categoryIds}
             onChange={(ids) => setValues((v) => ({ ...v, categoryIds: ids }))}
+            onCreate={async (name) => {
+              const category = await createCategoryAction({ name, slug: slugify(name) });
+              setCategoryOptions((opts) => [...opts, category]);
+              return category;
+            }}
           />
           <MultiSelect
-            label="Tags"
-            options={tags}
-            selected={values.tagIds}
-            onChange={(ids) => setValues((v) => ({ ...v, tagIds: ids }))}
-          />
-          <MultiSelect
+            inline
             label="Roles"
-            options={roles}
+            options={roleOptions}
             selected={values.roleIds}
             onChange={(ids) => setValues((v) => ({ ...v, roleIds: ids }))}
+            onCreate={async (name) => {
+              const role = await createRoleAction({ name, slug: slugify(name) });
+              setRoleOptions((opts) => [...opts, role]);
+              return role;
+            }}
+          />
+          <MultiSelect
+            inline
+            label="Tags"
+            options={tagOptions}
+            selected={values.tagIds}
+            onChange={(ids) => setValues((v) => ({ ...v, tagIds: ids }))}
+            onCreate={async (name) => {
+              const tag = await createTagAction({ name, slug: slugify(name) });
+              setTagOptions((opts) => [...opts, tag]);
+              return tag;
+            }}
           />
 
           <DialogFooter>

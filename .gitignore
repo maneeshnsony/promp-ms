@@ -29,3 +29,5 @@ Thumbs.db
 
 # Local-only scratch docs
 docs/local/
+temp/
+.playwright-mcp/

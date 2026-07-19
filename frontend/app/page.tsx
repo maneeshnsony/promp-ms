@@ -2,7 +2,7 @@ import { PlusIcon } from "lucide-react";
 
 import { auth } from "@/auth";
 import { getCategories, getPrompts, getRoles, getTags } from "@/lib/api";
-import { PromptCard } from "@/components/prompt-card";
+import { PromptGrid } from "@/components/prompt-grid";
 import { PromptFormDialog } from "@/components/prompt-form-dialog";
 import { Pagination } from "@/components/pagination";
 import { SearchBar } from "@/components/search-bar";
@@ -70,14 +70,7 @@ export default async function DashboardPage({
           {prompts.length === 0 ? (
             <EmptyState hasActiveFilters={hasActiveFilters} />
           ) : (
-            <div
-              className="grid gap-4"
-              style={{ gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))" }}
-            >
-              {prompts.map((prompt) => (
-                <PromptCard key={prompt.id} prompt={prompt} categories={categories} tags={tags} roles={roles} />
-              ))}
-            </div>
+            <PromptGrid prompts={prompts} categories={categories} tags={tags} roles={roles} />
           )}
 
           <Pagination page={meta.page} perPage={meta.per_page} total={meta.total} />

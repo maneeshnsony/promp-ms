@@ -14,19 +14,13 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import { slugify } from "@/lib/utils";
+
 interface Entity {
   id: number;
   name: string;
   slug: string;
   color?: string | null;
-}
-
-function slugify(name: string) {
-  return name
-    .toLowerCase()
-    .trim()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/(^-|-$)/g, "");
 }
 
 export function EntityManager<T extends Entity>({
