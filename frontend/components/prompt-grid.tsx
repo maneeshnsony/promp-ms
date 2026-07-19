@@ -1,18 +1,17 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { LayoutGrid, Columns2, Columns3, Grid2x2 } from "lucide-react";
+import { Rows3, Columns2, Columns3 } from "lucide-react";
 
 import { PromptCard } from "@/components/prompt-card";
 import { cn } from "@/lib/utils";
 import type { Category, Prompt, Role, Tag } from "@/lib/types";
 
-const COLUMN_OPTIONS = [1, 2, 3, 4] as const;
+const COLUMN_OPTIONS = [1, 2, 3] as const;
 const COLUMN_ICONS = {
-  1: LayoutGrid,
+  1: Rows3,
   2: Columns2,
   3: Columns3,
-  4: Grid2x2,
 } as const;
 const STORAGE_KEY = "prompt-grid-columns";
 const DEFAULT_COLUMNS = 1;
