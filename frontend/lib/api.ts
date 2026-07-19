@@ -28,11 +28,23 @@ interface Envelope<T> {
   message?: string;
 }
 
-async function unwrap<T>(res: Response): Promise<T> {
-  const body = (await res.json().catch(() => null)) as Envelope<T> | null;
+interface ValidationErrorBody {
+  status: number;
+  error?: number;
+  messages?: Record<string, string>;
+}
 
-  if (!res.ok || body?.status === "error") {
-    throw new Error(body?.message ?? `Request failed with status ${res.status}`);
+async function unwrap<T>(res: Response): Promise<T> {
+  const body = (await res.json().catch(() => null)) as Envelope<T> | ValidationErrorBody | null;
+
+  if (!res.ok || (body as Envelope<T> | null)?.status === "error") {
+    const envelopeMessage = (body as Envelope<T> | null)?.message;
+    const validationMessages = (body as ValidationErrorBody | null)?.messages;
+    const message =
+      envelopeMessage ??
+      (validationMessages ? Object.values(validationMessages).join(", ") : undefined) ??
+      `Request failed with status ${res.status}`;
+    throw new Error(message);
   }
 
   return (body as Envelope<T>).data;

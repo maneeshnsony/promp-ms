@@ -38,7 +38,7 @@ class PromptModel extends Model
             $builder->where('is_pinned', true);
         }
         if (! empty($params['search'])) {
-            $builder->groupStart()->like('title', $params['search'])->orLike('description', $params['search'])->groupEnd();
+            $builder->groupStart()->like('title', $params['search'], 'both', null, true)->orLike('description', $params['search'], 'both', null, true)->groupEnd();
         }
 
         return $builder;
