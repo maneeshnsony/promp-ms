@@ -1,5 +1,4 @@
 import { PlusIcon } from "lucide-react";
-import Link from "next/link";
 
 import { auth } from "@/auth";
 import { getCategories, getPrompts, getRoles, getTags } from "@/lib/api";
@@ -44,29 +43,18 @@ export default async function DashboardPage({
   return (
     <main className="mx-auto flex w-full max-w-[1200px] flex-1 flex-col px-6 py-8">
       <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
-        <h1 className="text-xl font-semibold text-foreground">Prompt Hub</h1>
-        <div className="flex items-center gap-3">
-          <Link href="/categories" className="text-sm text-muted-foreground hover:text-foreground hover:underline">
-            Categories
-          </Link>
-          <Link href="/tags" className="text-sm text-muted-foreground hover:text-foreground hover:underline">
-            Tags
-          </Link>
-          <Link href="/roles" className="text-sm text-muted-foreground hover:text-foreground hover:underline">
-            Roles
-          </Link>
-          <PromptFormDialog
-            mode="create"
-            categories={categories}
-            tags={tags}
-            roles={roles}
-            trigger={
-              <Button>
-                <PlusIcon /> New prompt
-              </Button>
-            }
-          />
-        </div>
+        <h1 className="text-xl font-semibold text-foreground">Prompts</h1>
+        <PromptFormDialog
+          mode="create"
+          categories={categories}
+          tags={tags}
+          roles={roles}
+          trigger={
+            <Button>
+              <PlusIcon /> New prompt
+            </Button>
+          }
+        />
       </div>
 
       <div className="mb-6">

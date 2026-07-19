@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { XIcon } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
@@ -32,11 +33,15 @@ export function MultiSelect({
   selected: number[];
   onChange: (ids: number[]) => void;
 }) {
+  const [query, setQuery] = useState("");
+  const [focused, setFocused] = useState(false);
+
   function toggle(id: number) {
     onChange(selected.includes(id) ? selected.filter((existing) => existing !== id) : [...selected, id]);
   }
 
   const selectedOptions = options.filter((option) => selected.includes(option.id));
+  const showList = focused || query.length > 0;
 
   return (
     <div className="flex flex-col gap-1.5">
@@ -61,22 +66,30 @@ export function MultiSelect({
       )}
 
       <Command className="rounded-lg! border border-input">
-        <CommandInput placeholder={`Search ${label.toLowerCase()}...`} />
-        <CommandList className="max-h-40">
-          <CommandEmpty>No results.</CommandEmpty>
-          <CommandGroup>
-            {options.map((option) => (
-              <CommandItem
-                key={option.id}
-                value={option.name}
-                data-checked={selected.includes(option.id)}
-                onSelect={() => toggle(option.id)}
-              >
-                {option.name}
-              </CommandItem>
-            ))}
-          </CommandGroup>
-        </CommandList>
+        <CommandInput
+          placeholder={`Search ${label.toLowerCase()}...`}
+          value={query}
+          onValueChange={setQuery}
+          onFocus={() => setFocused(true)}
+          onBlur={() => setTimeout(() => setFocused(false), 150)}
+        />
+        {showList && (
+          <CommandList className="max-h-40">
+            <CommandEmpty>No results.</CommandEmpty>
+            <CommandGroup>
+              {options.map((option) => (
+                <CommandItem
+                  key={option.id}
+                  value={option.name}
+                  data-checked={selected.includes(option.id)}
+                  onSelect={() => toggle(option.id)}
+                >
+                  {option.name}
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          </CommandList>
+        )}
       </Command>
     </div>
   );

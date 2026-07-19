@@ -65,8 +65,8 @@
   --accent: #F3F4F6;
   --accent-foreground: #111317;
   --destructive: oklch(0.577 0.245 27.325);
-  --border: #E5E7EB;
-  --input: #E5E7EB;
+  --border: #D1D5DB;
+  --input: #D1D5DB;
   --ring: #0D9488;
   --chart-1: oklch(0.87 0 0);
   --chart-2: oklch(0.556 0 0);
@@ -102,8 +102,8 @@
   --accent: #1B1E22;
   --accent-foreground: #EDEEF0;
   --destructive: oklch(0.704 0.191 22.216);
-  --border: #23262B;
-  --input: #23262B;
+  --border: #33373E;
+  --input: #33373E;
   --ring: #2DD4BF;
   /* --chart-* and --sidebar-* inherit from :root (charts are theme-invariant
      for now; sidebar tokens are var() aliases of the core tokens above). */
