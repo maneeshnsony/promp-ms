@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Rows3, Columns2, Columns3 } from "lucide-react";
 
 import { PromptCard } from "@/components/prompt-card";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import type { Category, Prompt, Role, Tag } from "@/lib/types";
 
@@ -52,21 +53,27 @@ export function PromptGrid({
         {COLUMN_OPTIONS.map((count) => {
           const Icon = COLUMN_ICONS[count];
           return (
-            <button
-              key={count}
-              type="button"
-              onClick={() => selectColumns(count)}
-              aria-label={`Show ${count} column${count === 1 ? "" : "s"}`}
-              aria-pressed={columns === count}
-              className={cn(
-                "flex size-7 items-center justify-center rounded-md border transition-colors",
-                columns === count
-                  ? "border-primary bg-primary text-primary-foreground"
-                  : "border-input text-muted-foreground hover:text-foreground"
-              )}
-            >
-              <Icon size={16} />
-            </button>
+            <Tooltip key={count}>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  onClick={() => selectColumns(count)}
+                  aria-label={`Show ${count} column${count === 1 ? "" : "s"}`}
+                  aria-pressed={columns === count}
+                  className={cn(
+                    "flex size-7 items-center justify-center rounded-md border transition-colors",
+                    columns === count
+                      ? "border-primary bg-primary text-primary-foreground"
+                      : "border-input text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  <Icon size={16} />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent>
+                {count === 1 ? "Single column" : `${count} columns`}
+              </TooltipContent>
+            </Tooltip>
           );
         })}
       </div>

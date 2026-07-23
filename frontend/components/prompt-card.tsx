@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Copy, Check, Pin, Info, Pencil, History, Trash2 } from "lucide-react";
+import { Copy, CopyPlus, Check, Pin, Info, Pencil, History, Trash2, Eye } from "lucide-react";
 import { toast } from "sonner";
 
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -9,9 +9,11 @@ import { Button } from "@/components/ui/button";
 import { CategoryBadge } from "@/components/category-badge";
 import { TagChip } from "@/components/tag-chip";
 import { PromptFormDialog } from "@/components/prompt-form-dialog";
+import { PromptDetailDialog } from "@/components/prompt-detail-dialog";
 import { SlotFillDialog } from "@/components/slot-fill-dialog";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { VersionHistoryDialog } from "@/components/version-history-dialog";
-import { deletePromptAction, trackCopyAction } from "@/lib/actions";
+import { createPromptAction, deletePromptAction, trackCopyAction } from "@/lib/actions";
 import { extractSlots } from "@/lib/slots";
 import type { Category, Prompt, Role, Tag } from "@/lib/types";
 
@@ -44,6 +46,7 @@ export function PromptCard({
 }) {
   const [copied, setCopied] = useState(false);
   const [showNotes, setShowNotes] = useState(false);
+  const [detailOpen, setDetailOpen] = useState(false);
   const [slotDialogOpen, setSlotDialogOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -69,6 +72,22 @@ export function PromptCard({
     await writeClipboard(filledText);
     setSlotDialogOpen(false);
     markCopied();
+  }
+
+  async function handleClone() {
+    try {
+      await createPromptAction({
+        title: `CLONE ~ ${prompt.title}`,
+        description: prompt.description,
+        notes: prompt.notes ?? undefined,
+        category_ids: prompt.categories.map((c) => c.id),
+        tag_ids: prompt.tags.map((t) => t.id),
+        role_ids: prompt.roles.map((r) => r.id),
+      });
+      toast.success("Prompt cloned.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to clone prompt.");
+    }
   }
 
   async function handleDelete() {
@@ -114,28 +133,57 @@ export function PromptCard({
               </Button>
             }
           />
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            aria-label="View version history"
-            className="opacity-0 group-hover:opacity-100"
-            onClick={() => setHistoryOpen(true)}
-          >
-            <History size={16} />
-          </Button>
-          <Button variant="ghost" size="icon-sm" aria-label="Copy prompt to clipboard" onClick={handleCopyClick}>
-            {copied ? <Check size={16} className="text-emerald-600" /> : <Copy size={16} />}
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            aria-label="Delete prompt"
-            className="opacity-0 group-hover:opacity-100"
-            disabled={deleting}
-            onClick={handleDelete}
-          >
-            <Trash2 size={16} />
-          </Button>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                aria-label="Clone prompt"
+                className="opacity-0 group-hover:opacity-100"
+                onClick={handleClone}
+              >
+                <CopyPlus size={16} />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Clone prompt</TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                aria-label="View version history"
+                className="opacity-0 group-hover:opacity-100"
+                onClick={() => setHistoryOpen(true)}
+              >
+                <History size={16} />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Version history</TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button variant="ghost" size="icon-sm" aria-label="Copy prompt to clipboard" onClick={handleCopyClick}>
+                {copied ? <Check size={16} className="text-emerald-600" /> : <Copy size={16} />}
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Copy prompt</TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                aria-label="Delete prompt"
+                className="opacity-0 group-hover:opacity-100"
+                disabled={deleting}
+                onClick={handleDelete}
+              >
+                <Trash2 size={16} />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Delete prompt</TooltipContent>
+          </Tooltip>
         </div>
       </CardHeader>
 
@@ -144,17 +192,28 @@ export function PromptCard({
           {prompt.description}
         </p>
 
-        {prompt.notes && (
+        <div className="mt-3 flex flex-wrap items-center gap-2">
           <button
             type="button"
-            onClick={() => setShowNotes((v) => !v)}
-            className="mt-2 flex items-center gap-1 text-xs text-primary hover:underline"
+            onClick={() => setDetailOpen(true)}
+            aria-label="Show full prompt"
+            className="inline-flex items-center gap-1 rounded-md border border-border bg-muted/30 px-2 py-0.5 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
           >
-            <Info size={12} /> Why this works
+            <Eye size={12} /> See more
           </button>
-        )}
+          {prompt.notes && (
+            <button
+              type="button"
+              onClick={() => setShowNotes((v) => !v)}
+              className="inline-flex items-center gap-1 rounded-md border border-border bg-muted/30 px-2 py-0.5 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            >
+              <Info size={12} /> {showNotes ? "Hide notes" : "Why this works"}
+            </button>
+          )}
+        </div>
+
         {showNotes && prompt.notes && (
-          <p className="mt-1 text-xs text-muted-foreground">{prompt.notes}</p>
+          <p className="mt-2 text-xs text-muted-foreground">{prompt.notes}</p>
         )}
       </CardContent>
 
@@ -169,6 +228,7 @@ export function PromptCard({
         </CardFooter>
       )}
 
+      <PromptDetailDialog prompt={prompt} open={detailOpen} onOpenChange={setDetailOpen} />
       <SlotFillDialog
         open={slotDialogOpen}
         onOpenChange={setSlotDialogOpen}
