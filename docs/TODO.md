@@ -52,11 +52,11 @@ Infra + full schema. All items built, migrated, and seeded — verified end-to-e
 
 Prompts, categories, tags, roles, Google sign-in.
 
-### Auth ✅ Complete (pending manual Google Cloud Console redirect-URI registration to test live sign-in)
+### Auth ✅ Complete
 - [x] `AuthController::google` — verify Google ID token against JWKS, check `aud` matches `GOOGLE_CLIENT_ID`, optional `hd` domain check
 - [x] `UserModel::upsertFromGoogle` — find-or-create by `google_sub`
 - [x] Mint short-lived (1h) backend session JWT (`HS256`, `APP_JWT_SECRET`)
-- [x] `AuthFilter` — the real enforcement point; rejects any `api/v1` request without a valid bearer token (401). _Also gates on the dev/testing-only `SKIP_AUTH` flag (default `false`) — see `docs/PHASE1-AUTH-PLAN.md`._
+- [x] `AuthFilter` — the real enforcement point; rejects any `api/v1` request without a valid bearer token (401). _Also gates on the dev/testing-only `SKIP_AUTH` flag (default `false`) — see `docs/local/PHASE1-AUTH-PLAN.md` (gitignored scratch doc; may not exist in your checkout)._
 - [x] `AuthContext` — static per-request holder for the authenticated user (safe under PHP-FPM's one-request-per-process model)
 - [x] `app/Config/Routes.php` — `auth/google` route (no filter) + `api/v1` group with `['cors', 'auth']` filters. _Uses the `filter` (singular) group option key — PLAN.md's `filters` example is silently ignored by CI4 4.7 (see decisions log #12)._
 - [x] Frontend: `auth.ts` (Auth.js v5 beta + Google provider, JWT session strategy, exchanges Google ID token for backend token in the `jwt` callback)
@@ -65,8 +65,9 @@ Prompts, categories, tags, roles, Google sign-in.
 - [x] Frontend: `app/login/page.tsx` — "Sign in with Google"
 - [x] `docker-compose.yml` / root `.env.example` — `SKIP_AUTH` wired to both `api` (`SKIP_AUTH`) and `web` (`NEXT_PUBLIC_SKIP_AUTH`) services
 - [x] `backend/docker/zz-prompt-ms.conf` — `clear_env = no`, without which docker-compose `environment:` overrides never reach php-fpm workers (decisions log #13)
+- [ ] Manual (external, not a code change): register the OAuth redirect URI (`http://localhost:3000/api/auth/callback/google`) in Google Cloud Console — required before live end-to-end sign-in can be tested; the implementation above isn't blocked by it.
 
-### Backend CRUD ✅ Complete (per `docs/PHASE1-BACKEND-CRUD-PLAN.md`; pending live DB verification — see that plan's Verification section)
+### Backend CRUD ✅ Complete (per `docs/local/PHASE1-BACKEND-CRUD-PLAN.md`, gitignored; pending live DB verification — see that plan's Verification section)
 - [x] `PromptModel` — validation rules (`title` required/max 255, `description` required), soft deletes, `scopeFilters()` (category/tag/role/pinned/search)
 - [x] `PromptController::index` — pagination (`page`, `per_page`, default 20, capped 100), ordered by `is_pinned DESC, created_at DESC`
 - [x] `PromptController::show`
@@ -84,7 +85,7 @@ Prompts, categories, tags, roles, Google sign-in.
 - [x] Every response follows the envelope: `{ "status": "success"|"error", "data": ..., "meta"?: {...}, "message"?: "..." }`
 - [x] `app/Config/Routes.php` — protected `api/v1` group populated with all prompt/category/tag/role routes under `['cors', 'auth']`
 
-### Frontend — dashboard MVP ✅ Complete (per `docs/PHASE1-FRONTEND-DASHBOARD-PLAN.md`; verified end-to-end via a local dev server + Playwright against the live backend — see that plan's Verification section, all 6 steps passed)
+### Frontend — dashboard MVP ✅ Complete (per `docs/local/PHASE1-FRONTEND-DASHBOARD-PLAN.md`, gitignored; verified end-to-end via a local dev server + Playwright against the live backend — see that plan's Verification section, all 6 steps passed)
 - [x] `lib/types.ts` — `Category`, `Tag`, `Role`, `Prompt`, `Paginated<T>`, `PromptFormValues` interfaces
 - [x] `lib/api.ts` — typed helpers (`getPrompts`, `createPrompt`, `updatePrompt`, `deletePrompt`, `getCategories`, `getTags`, `getRoles`) built on the existing `apiFetch`; server-side calls use `API_BASE_URL`, client-side use `NEXT_PUBLIC_API_BASE_URL`
 - [x] `lib/actions.ts` (new) — Server Actions (`trackCopyAction`, `createPromptAction`, `updatePromptAction`) so writes triggered from client components (`PromptCard`, `PromptFormDialog`) still resolve `auth()` server-side and attach the bearer token — closes the gap `apiFetch` has on the client, documented in the plan's Context section
@@ -102,7 +103,7 @@ Prompts, categories, tags, roles, Google sign-in.
 
 ---
 
-## Phase 2 — Discovery & polish ✅ Complete (per `docs/PHASE2-DISCOVERY-POLISH-PLAN.md`)
+## Phase 2 — Discovery & polish ✅ Complete (per `docs/local/PHASE2-DISCOVERY-POLISH-PLAN.md`, gitignored)
 
 Search, filtering, curation.
 
@@ -116,7 +117,7 @@ Search, filtering, curation.
 
 ---
 
-## Phase 3 — Deeper enhancements ✅ Complete (per `docs/PHASE3-DEEPER-ENHANCEMENTS-PLAN.md`)
+## Phase 3 — Deeper enhancements ✅ Complete (per `docs/local/PHASE3-DEEPER-ENHANCEMENTS-PLAN.md`, gitignored)
 
 The richer approved features.
 
