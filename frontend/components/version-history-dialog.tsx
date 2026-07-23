@@ -10,7 +10,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { getPromptVersions } from "@/lib/api";
+import { getPromptVersionsAction } from "@/lib/actions";
 import type { PromptVersion } from "@/lib/types";
 
 function relativeTime(iso: string) {
@@ -46,7 +46,7 @@ export function VersionHistoryDialog({
       setVersions(null);
       setError(false);
       try {
-        const result = await getPromptVersions(promptId);
+        const result = await getPromptVersionsAction(promptId);
         if (!cancelled) setVersions(result);
       } catch {
         if (!cancelled) {

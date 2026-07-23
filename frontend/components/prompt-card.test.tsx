@@ -21,8 +21,8 @@ vi.mock("@/lib/actions", () => ({
   deletePromptAction,
   createPromptAction,
   updatePromptAction: vi.fn(),
+  getPromptVersionsAction: getPromptVersions,
 }));
-vi.mock("@/lib/api", () => ({ getPromptVersions }));
 
 const { toastSuccess, toastError } = vi.hoisted(() => ({
   toastSuccess: vi.fn(),

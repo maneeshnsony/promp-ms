@@ -11,19 +11,21 @@ import {
   deletePrompt,
   deleteRole,
   deleteTag,
+  getPromptVersions,
   updateCategory,
   updatePrompt,
   updateRole,
   updateTag,
   type EntityInput,
 } from "@/lib/api";
-import type { Category, Prompt, PromptFormValues, Role, Tag } from "@/lib/types";
+import type { Category, Prompt, PromptFormValues, PromptVersion, Role, Tag } from "@/lib/types";
 
 // apiFetch only attaches the Authorization header on the server (see lib/api.ts) —
 // on the client it's silently omitted even with an active session. PromptCard's copy
-// button and PromptFormDialog's submit handler are client components, so their writes
-// are routed through these Server Actions instead of calling apiFetch directly; running
-// server-side lets `auth()` resolve normally and the bearer token attach correctly.
+// button, PromptFormDialog's submit handler, and VersionHistoryDialog's fetch are all
+// client components, so their reads/writes are routed through these Server Actions
+// instead of calling apiFetch directly; running server-side lets `auth()` resolve
+// normally and the bearer token attach correctly.
 
 /** Fire-and-forget from the client — never throws, never blocks the copy feedback. */
 export async function trackCopyAction(promptId: number): Promise<void> {
@@ -49,6 +51,10 @@ export async function updatePromptAction(id: number, body: Partial<PromptFormVal
 export async function deletePromptAction(id: number): Promise<void> {
   await deletePrompt(id);
   revalidatePath("/");
+}
+
+export async function getPromptVersionsAction(id: number): Promise<PromptVersion[]> {
+  return getPromptVersions(id);
 }
 
 export async function createCategoryAction(body: EntityInput): Promise<Category> {
