@@ -45,4 +45,25 @@ describe("FilterSidebar", () => {
     rerender(<FilterSidebar categories={categories} tags={tags} roles={roles} />);
     expect(screen.getByText("Clear all filters")).toBeInTheDocument();
   });
+
+  it("writes the tag param independently and resets page", async () => {
+    render(<FilterSidebar categories={categories} tags={tags} roles={roles} />);
+    await userEvent.click(screen.getByText("quick"));
+    expect(push).toHaveBeenCalledWith("/?tag=5&page=1");
+  });
+
+  it("writes the role param independently and resets page", async () => {
+    render(<FilterSidebar categories={categories} tags={tags} roles={roles} />);
+    await userEvent.click(screen.getByText("Reviewer"));
+    expect(push).toHaveBeenCalledWith("/?role=9&page=1");
+  });
+
+  it("clears every facet param at once via Clear all filters", async () => {
+    params = new URLSearchParams("category=1&tag=5&role=9&search=x");
+    render(<FilterSidebar categories={categories} tags={tags} roles={roles} />);
+
+    await userEvent.click(screen.getByText("Clear all filters"));
+
+    expect(push).toHaveBeenCalledWith("/?search=x&page=1");
+  });
 });

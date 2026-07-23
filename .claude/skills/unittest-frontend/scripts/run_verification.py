@@ -189,7 +189,10 @@ def run_scenarios() -> None:
 
         # 2. Create a prompt with a category + role selected.
         title = f"{TITLE_PREFIX} — create"
-        description = f"{TITLE_PREFIX} description line one\n{{slot}}"
+        # No `{token}` placeholders here on purpose: PromptCard's copy button opens the
+        # slot-fill dialog instead of copying directly when the description has any, and
+        # this scenario exercises the direct-copy path.
+        description = f"{TITLE_PREFIX} description line one\nline two"
         notes = "Why this works: verification notes."
 
         def find_card(title_text: str):
@@ -204,7 +207,12 @@ def run_scenarios() -> None:
         page.get_by_label("Title").fill(title)
         page.get_by_label("Description").fill(description)
         page.get_by_label("Notes", exact=False).fill(notes)
+        # MultiSelect only renders its option list once its search box is focused or has a
+        # query (added alongside inline create-on-the-fly) — click the box first so the
+        # option becomes visible before selecting it.
+        page.get_by_placeholder("Search categories...").click()
         page.get_by_role("option", name=category_name, exact=True).click()
+        page.get_by_placeholder("Search roles...").click()
         page.get_by_role("option", name=role_name, exact=True).click()
         page.get_by_role("button", name="Create prompt").click()
 
