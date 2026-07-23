@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -47,6 +48,7 @@ function emptyState(prompt?: Prompt) {
 }
 
 export function PromptFormDialog({ mode, prompt, categories, tags, roles, trigger }: PromptFormDialogProps) {
+  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [values, setValues] = useState(() => emptyState(prompt));
@@ -92,6 +94,7 @@ export function PromptFormDialog({ mode, prompt, categories, tags, roles, trigge
       }
 
       setOpen(false);
+      router.refresh();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Something went wrong.");
     } finally {
@@ -102,7 +105,7 @@ export function PromptFormDialog({ mode, prompt, categories, tags, roles, trigge
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>{trigger}</DialogTrigger>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>{mode === "create" ? "New prompt" : "Edit prompt"}</DialogTitle>
           {mode === "edit" && (

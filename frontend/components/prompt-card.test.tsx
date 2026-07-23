@@ -2,6 +2,12 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ refresh: vi.fn() }),
+}));
+
+import { TooltipProvider } from "@/components/ui/tooltip";
+
 const { trackCopyAction, getPromptVersions, deletePromptAction } = vi.hoisted(() => ({
   trackCopyAction: vi.fn().mockResolvedValue(undefined),
   getPromptVersions: vi.fn().mockResolvedValue([]),
@@ -46,9 +52,17 @@ describe("PromptCard", () => {
     (navigator.clipboard.writeText as ReturnType<typeof vi.fn>).mockClear();
   });
 
+  function renderCard(prompt: Prompt) {
+    return render(
+      <TooltipProvider>
+        <PromptCard prompt={prompt} categories={[]} tags={[]} roles={[]} />
+      </TooltipProvider>
+    );
+  }
+
   it("copies directly and tracks the copy when there are no slots", async () => {
     const prompt = makePrompt({ description: "Plain prompt with no tokens." });
-    render(<PromptCard prompt={prompt} categories={[]} tags={[]} roles={[]} />);
+    renderCard(prompt);
 
     await userEvent.click(screen.getByLabelText("Copy prompt to clipboard"));
 
@@ -58,7 +72,7 @@ describe("PromptCard", () => {
 
   it("opens the slot fill dialog instead of copying directly when the description has {slots}", async () => {
     const prompt = makePrompt();
-    render(<PromptCard prompt={prompt} categories={[]} tags={[]} roles={[]} />);
+    renderCard(prompt);
 
     await userEvent.click(screen.getByLabelText("Copy prompt to clipboard"));
 
@@ -70,7 +84,7 @@ describe("PromptCard", () => {
 
   it("disables Copy in the slot dialog until every slot is filled", async () => {
     const prompt = makePrompt();
-    render(<PromptCard prompt={prompt} categories={[]} tags={[]} roles={[]} />);
+    renderCard(prompt);
     await userEvent.click(screen.getByLabelText("Copy prompt to clipboard"));
 
     const copyButton = screen.getByRole("button", { name: "Copy" });
@@ -90,7 +104,7 @@ describe("PromptCard", () => {
   it("deletes the prompt after confirmation", async () => {
     vi.spyOn(window, "confirm").mockReturnValue(true);
     const prompt = makePrompt();
-    render(<PromptCard prompt={prompt} categories={[]} tags={[]} roles={[]} />);
+    renderCard(prompt);
 
     await userEvent.click(screen.getByLabelText("Delete prompt"));
 
@@ -100,7 +114,7 @@ describe("PromptCard", () => {
   it("does not delete when the confirmation is cancelled", async () => {
     vi.spyOn(window, "confirm").mockReturnValue(false);
     const prompt = makePrompt();
-    render(<PromptCard prompt={prompt} categories={[]} tags={[]} roles={[]} />);
+    renderCard(prompt);
 
     await userEvent.click(screen.getByLabelText("Delete prompt"));
 

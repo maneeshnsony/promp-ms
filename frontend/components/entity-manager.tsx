@@ -14,6 +14,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { slugify } from "@/lib/utils";
 
 interface Entity {
@@ -155,17 +156,27 @@ export function EntityManager<T extends Entity>({
                 <span className="text-xs text-muted-foreground">{item.slug}</span>
               </div>
               <div className="flex items-center gap-1">
-                <Button variant="ghost" size="icon-sm" aria-label={`Edit ${item.name}`} onClick={() => openEdit(item)}>
-                  <Pencil size={16} />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon-sm"
-                  aria-label={`Delete ${item.name}`}
-                  onClick={() => handleDelete(item)}
-                >
-                  <Trash2 size={16} />
-                </Button>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button variant="ghost" size="icon-sm" aria-label={`Edit ${item.name}`} onClick={() => openEdit(item)}>
+                      <Pencil size={16} />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Edit</TooltipContent>
+                </Tooltip>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      aria-label={`Delete ${item.name}`}
+                      onClick={() => handleDelete(item)}
+                    >
+                      <Trash2 size={16} />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Delete</TooltipContent>
+                </Tooltip>
               </div>
             </li>
           ))}
