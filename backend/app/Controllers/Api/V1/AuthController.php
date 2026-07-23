@@ -47,6 +47,17 @@ class AuthController extends BaseController
             ], ResponseInterface::HTTP_UNAUTHORIZED);
         }
 
+        // Google issues ID tokens with either form of this issuer; JWT::decode already
+        // verified the signature against Google's own JWKS, so this is defense-in-depth
+        // (completing the aud/iss/signature checklist) rather than the sole line of defense.
+        if (! in_array($claims->iss ?? null, ['https://accounts.google.com', 'accounts.google.com'], true)) {
+            return $this->respond([
+                'status'  => 'error',
+                'data'    => null,
+                'message' => 'Invalid Google token',
+            ], ResponseInterface::HTTP_UNAUTHORIZED);
+        }
+
         $allowedDomain = env('GOOGLE_ALLOWED_DOMAIN');
         if (! empty($allowedDomain) && ($claims->hd ?? null) !== $allowedDomain) {
             return $this->respond([

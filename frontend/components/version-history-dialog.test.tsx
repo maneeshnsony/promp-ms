@@ -2,7 +2,7 @@ import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, waitFor, act } from "@testing-library/react";
 
 const { getPromptVersions } = vi.hoisted(() => ({ getPromptVersions: vi.fn() }));
-vi.mock("@/lib/api", () => ({ getPromptVersions }));
+vi.mock("@/lib/actions", () => ({ getPromptVersionsAction: getPromptVersions }));
 
 const { toastError } = vi.hoisted(() => ({ toastError: vi.fn() }));
 vi.mock("sonner", () => ({ toast: { error: toastError } }));

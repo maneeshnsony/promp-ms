@@ -4,14 +4,10 @@ interface JwtCallbackArgs {
   token: Record<string, unknown>;
   account: { id_token?: string } | null;
 }
-interface SessionCallbackArgs {
-  session: Record<string, unknown>;
-  token: Record<string, unknown>;
-}
 interface CapturedConfig {
   callbacks: {
     jwt: (args: JwtCallbackArgs) => Promise<Record<string, unknown>>;
-    session: (args: SessionCallbackArgs) => Promise<Record<string, unknown>>;
+    session?: (...args: unknown[]) => unknown;
   };
 }
 
@@ -86,13 +82,13 @@ describe("auth.ts", () => {
   });
 
   describe("session callback", () => {
-    it("copies token.backendToken onto session.backendToken", async () => {
-      const result = await captured.config!.callbacks.session({
-        session: { user: { name: "A" } },
-        token: { backendToken: "backend-jwt" },
-      });
-
-      expect(result).toEqual({ user: { name: "A" }, backendToken: "backend-jwt" });
+    it("is not overridden, so the backend token is never copied onto the client-visible session object", () => {
+      // No custom `session` callback here is deliberate: that callback's output is also
+      // what NextAuth's own, unauthenticated GET /api/auth/session route returns to any
+      // same-origin script, so putting the backend bearer token there would expose it to
+      // any JS running on the page. Server-side code reads the token straight off the
+      // encrypted `token` (JWT cookie) instead — see lib/api.ts's getBackendToken().
+      expect(captured.config!.callbacks.session).toBeUndefined();
     });
   });
 });

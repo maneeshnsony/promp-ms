@@ -66,12 +66,6 @@ export interface PromptVersion {
   edited_at: string;
 }
 
-declare module "next-auth" {
-  interface Session {
-    backendToken?: string;
-  }
-}
-
 declare module "@auth/core/jwt" {
   interface JWT {
     backendToken?: string;

@@ -1,9 +1,13 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 
-const { authMock } = vi.hoisted(() => ({
-  authMock: vi.fn(),
+const { getTokenMock, headersMock, redirectMock } = vi.hoisted(() => ({
+  getTokenMock: vi.fn(),
+  headersMock: vi.fn(),
+  redirectMock: vi.fn(),
 }));
-vi.mock("@/auth", () => ({ auth: authMock }));
+vi.mock("next-auth/jwt", () => ({ getToken: getTokenMock }));
+vi.mock("next/headers", () => ({ headers: headersMock }));
+vi.mock("next/navigation", () => ({ redirect: redirectMock }));
 
 function jsonResponse(body: unknown, ok = true, status = 200) {
   return {
@@ -20,8 +24,11 @@ describe("lib/api", () => {
   beforeEach(() => {
     fetchMock = vi.fn().mockResolvedValue(jsonResponse({ status: "success", data: {} }));
     vi.stubGlobal("fetch", fetchMock);
-    authMock.mockReset();
-    authMock.mockResolvedValue(null);
+    getTokenMock.mockReset();
+    getTokenMock.mockResolvedValue(null);
+    headersMock.mockReset();
+    headersMock.mockResolvedValue(new Headers());
+    redirectMock.mockReset();
     vi.stubEnv("API_BASE_URL", "http://api.internal/v1");
     vi.stubEnv("NEXT_PUBLIC_API_BASE_URL", "http://api.public/v1");
     originalWindow = globalThis.window;
@@ -64,10 +71,10 @@ describe("lib/api", () => {
       expect(fetchMock).toHaveBeenCalledWith("http://api.public/v1/prompts", expect.any(Object));
     });
 
-    it("attaches the bearer token on the server when a session exists", async () => {
+    it("attaches the bearer token on the server when the session cookie decodes to one", async () => {
       const { apiFetch } = await import("@/lib/api");
       goServer();
-      authMock.mockResolvedValue({ backendToken: "tok123" });
+      getTokenMock.mockResolvedValue({ backendToken: "tok123" });
 
       await apiFetch("/prompts");
 
@@ -78,7 +85,7 @@ describe("lib/api", () => {
     it("omits the bearer token on the server when there is no session", async () => {
       const { apiFetch } = await import("@/lib/api");
       goServer();
-      authMock.mockResolvedValue(null);
+      getTokenMock.mockResolvedValue(null);
 
       await apiFetch("/prompts");
 
@@ -86,12 +93,12 @@ describe("lib/api", () => {
       expect(headers.get("Authorization")).toBeNull();
     });
 
-    it("never calls auth() on the client, even with an active session server-side", async () => {
+    it("never calls getToken() on the client, even with an active session server-side", async () => {
       const { apiFetch } = await import("@/lib/api");
 
       await apiFetch("/prompts");
 
-      expect(authMock).not.toHaveBeenCalled();
+      expect(getTokenMock).not.toHaveBeenCalled();
       const headers = fetchMock.mock.calls[0][1].headers as Headers;
       expect(headers.get("Authorization")).toBeNull();
     });
@@ -112,16 +119,64 @@ describe("lib/api", () => {
         vi.resetModules();
       });
 
-      it("never calls auth(), even on the server with a session available", async () => {
+      it("never calls getToken(), even on the server with a session available", async () => {
         const { apiFetch } = await import("@/lib/api");
         goServer();
-        authMock.mockResolvedValue({ backendToken: "tok123" });
+        getTokenMock.mockResolvedValue({ backendToken: "tok123" });
 
         await apiFetch("/prompts");
 
-        expect(authMock).not.toHaveBeenCalled();
+        expect(getTokenMock).not.toHaveBeenCalled();
         const headers = fetchMock.mock.calls[0][1].headers as Headers;
         expect(headers.get("Authorization")).toBeNull();
+      });
+
+      it("does not redirect on a 401 when auth is skipped", async () => {
+        const { apiFetch } = await import("@/lib/api");
+        goServer();
+        fetchMock.mockResolvedValue(jsonResponse({}, false, 401));
+
+        await apiFetch("/prompts");
+
+        expect(redirectMock).not.toHaveBeenCalled();
+      });
+    });
+
+    describe("on a 401 from the backend", () => {
+      beforeEach(() => {
+        // A sibling describe stubs NEXT_PUBLIC_SKIP_AUTH=true and calls resetModules() so
+        // its own dynamic import re-reads the env; without resetting again here, a later
+        // `import("@/lib/api")` would return that stale cached module (skipAuth still true).
+        vi.resetModules();
+      });
+
+      it("redirects to /login on the server (expired backend session)", async () => {
+        const { apiFetch } = await import("@/lib/api");
+        goServer();
+        fetchMock.mockResolvedValue(jsonResponse({}, false, 401));
+
+        await apiFetch("/prompts");
+
+        expect(redirectMock).toHaveBeenCalledWith("/login");
+      });
+
+      it("does not redirect on the client", async () => {
+        const { apiFetch } = await import("@/lib/api");
+        fetchMock.mockResolvedValue(jsonResponse({}, false, 401));
+
+        await apiFetch("/prompts");
+
+        expect(redirectMock).not.toHaveBeenCalled();
+      });
+
+      it("does not redirect on a non-401 error status", async () => {
+        const { apiFetch } = await import("@/lib/api");
+        goServer();
+        fetchMock.mockResolvedValue(jsonResponse({}, false, 500));
+
+        await apiFetch("/prompts");
+
+        expect(redirectMock).not.toHaveBeenCalled();
       });
     });
   });

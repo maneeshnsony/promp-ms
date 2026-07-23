@@ -1,5 +1,6 @@
 <?php
 
+use CodeIgniter\Database\Exceptions\DatabaseException;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use CodeIgniter\Test\FeatureTestTrait;
@@ -230,6 +231,36 @@ final class PromptControllerTest extends CIUnitTestCase
         $this->assertSame('v1', $body['data'][0]['description']);
     }
 
+    public function testVersionsReturns404ForMissingPrompt(): void
+    {
+        $result = $this->withHeaders($this->authHeader())->get('api/v1/prompts/999999/versions');
+
+        $result->assertStatus(404);
+    }
+
+    public function testUpdateCannotReassignCreatedBy(): void
+    {
+        $promptId = $this->insertPrompt([
+            'title'       => self::TITLE_PREFIX . ' CreatedByGuard',
+            'description' => 'Original',
+            'created_by'  => $this->userId,
+        ]);
+
+        $result = $this->withHeaders($this->authHeader())
+            ->withBodyFormat('json')
+            ->put('api/v1/prompts/' . $promptId, [
+                'title'       => self::TITLE_PREFIX . ' CreatedByGuard (edited)',
+                'description' => 'Original',
+                'created_by'  => $this->userId + 999,
+            ]);
+
+        $result->assertStatus(200);
+        $body = json_decode($result->getJSON(), true);
+        $this->assertSame(self::TITLE_PREFIX . ' CreatedByGuard (edited)', $body['data']['title']);
+
+        $this->seeInDatabase('prompts', ['id' => $promptId, 'created_by' => $this->userId]);
+    }
+
     public function testTrackCopyIncrementsCopyCountAndReturns204(): void
     {
         $promptId = $this->insertPrompt(['title' => self::TITLE_PREFIX . ' Copy', 'copy_count' => 0]);
@@ -329,6 +360,34 @@ final class PromptControllerTest extends CIUnitTestCase
         $body = json_decode($result->getJSON(), true);
         $this->assertSame([], $body['data']);
         $this->assertSame(1, $body['meta']['total']);
+    }
+
+    public function testUpdateWithDuplicateCategoryIdsRollsBackAndKeepsExistingPivotIntact(): void
+    {
+        $ids = $this->seedRelations();
+
+        $promptId = $this->insertPrompt(['title' => self::TITLE_PREFIX . ' PivotRollback', 'description' => 'Original']);
+        $this->db->table('prompt_category')->insert(['prompt_id' => $promptId, 'category_id' => $ids['category']]);
+
+        // A duplicate id collides on prompt_category's (prompt_id, category_id) primary key
+        // during insertBatch, but only after syncPivot's delete() has already run — without a
+        // transaction wrapping both, the delete would commit and this failure would
+        // permanently drop the prompt's existing category association even though the
+        // request itself fails. FeatureTestTrait re-throws uncaught exceptions instead of
+        // converting them to a response (that conversion is normally done by production's
+        // top-level exception handler, which isn't wired up for these HTTP-simulated calls),
+        // so assert on the thrown exception directly rather than a response status.
+        $threw = false;
+        try {
+            $this->withHeaders($this->authHeader())
+                ->withBodyFormat('json')
+                ->put('api/v1/prompts/' . $promptId, ['category_ids' => [$ids['category'], $ids['category']]]);
+        } catch (DatabaseException $e) {
+            $threw = true;
+        }
+
+        $this->assertTrue($threw, 'Expected a DatabaseException from the duplicate-key insertBatch failure');
+        $this->seeInDatabase('prompt_category', ['prompt_id' => $promptId, 'category_id' => $ids['category']]);
     }
 
     public function testUpdateWithEmptyCategoryIdsArrayClearsExistingPivot(): void

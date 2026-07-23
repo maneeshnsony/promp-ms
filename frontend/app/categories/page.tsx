@@ -8,6 +8,7 @@ export default async function CategoriesPage() {
   return (
     <EntityManager
       title="Categories"
+      singular="Category"
       items={categories}
       supportsColor
       createAction={createCategoryAction}

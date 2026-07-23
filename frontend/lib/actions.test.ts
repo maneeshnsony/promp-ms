@@ -14,6 +14,7 @@ const {
   createRole,
   updateRole,
   deleteRole,
+  getPromptVersions,
   revalidatePath,
 } = vi.hoisted(() => ({
   apiFetch: vi.fn(),
@@ -29,6 +30,7 @@ const {
   createRole: vi.fn(),
   updateRole: vi.fn(),
   deleteRole: vi.fn(),
+  getPromptVersions: vi.fn(),
   revalidatePath: vi.fn(),
 }));
 
@@ -46,6 +48,7 @@ vi.mock("@/lib/api", () => ({
   createRole,
   updateRole,
   deleteRole,
+  getPromptVersions,
 }));
 vi.mock("next/cache", () => ({ revalidatePath }));
 
@@ -63,6 +66,7 @@ import {
   updateRoleAction,
   deleteRoleAction,
   trackCopyAction,
+  getPromptVersionsAction,
 } from "@/lib/actions";
 
 beforeEach(() => {
@@ -177,6 +181,18 @@ describe("entity actions revalidate both their list page and /", () => {
     expect(revalidatePath).toHaveBeenNthCalledWith(1, listPath);
     expect(revalidatePath).toHaveBeenNthCalledWith(2, "/");
     expect(revalidatePath).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("getPromptVersionsAction", () => {
+  it("fetches version history server-side so the bearer token attaches (unlike a direct client apiFetch call)", async () => {
+    const versions = [{ id: 1, title: "T", description: "D", edited_at: "2026-01-01T00:00:00Z" }];
+    getPromptVersions.mockResolvedValue(versions);
+
+    const result = await getPromptVersionsAction(5);
+
+    expect(getPromptVersions).toHaveBeenCalledWith(5);
+    expect(result).toEqual(versions);
   });
 });
 

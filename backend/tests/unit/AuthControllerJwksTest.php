@@ -139,10 +139,30 @@ final class AuthControllerJwksTest extends CIUnitTestCase
         $this->assertSame('Invalid Google token', $body['message']);
     }
 
+    public function testMismatchedIssuerReturns401(): void
+    {
+        $token = $this->signFixtureToken([
+            'aud'   => self::GOOGLE_CLIENT_ID,
+            'iss'   => 'https://not-google.example.com',
+            'email' => 'user@example.com',
+            'iat'   => time(),
+            'exp'   => time() + 3600,
+        ]);
+
+        $controller = $this->makeControllerWithFixtureJwks(json_encode(['id_token' => $token]));
+
+        $response = $controller->google();
+
+        $this->assertSame(401, $response->getStatusCode());
+        $body = json_decode($response->getBody(), true);
+        $this->assertSame('Invalid Google token', $body['message']);
+    }
+
     public function testValidTokenReturns200AndIssuesSessionJwt(): void
     {
         $token = $this->signFixtureToken([
             'aud'   => self::GOOGLE_CLIENT_ID,
+            'iss'   => 'https://accounts.google.com',
             'sub'   => self::GOOGLE_SUB,
             'email' => 'phpunit-authjwks@example.com',
             'name'  => 'PHPUnit AuthJwks',
@@ -173,6 +193,7 @@ final class AuthControllerJwksTest extends CIUnitTestCase
 
         $token = $this->signFixtureToken([
             'aud'   => self::GOOGLE_CLIENT_ID,
+            'iss'   => 'https://accounts.google.com',
             'sub'   => self::GOOGLE_SUB,
             'email' => 'user@other.example.com',
             'hd'    => 'other.example.com',
@@ -195,6 +216,7 @@ final class AuthControllerJwksTest extends CIUnitTestCase
 
         $token = $this->signFixtureToken([
             'aud'   => self::GOOGLE_CLIENT_ID,
+            'iss'   => 'https://accounts.google.com',
             'sub'   => self::GOOGLE_SUB,
             'email' => 'user@allowed.example.com',
             'hd'    => 'allowed.example.com',
