@@ -523,6 +523,12 @@ class PromptController extends ResourceController
         return $this->respond(['status' => 'success', 'data' => $this->attachRelations([$this->model->find($id)])[0]]);
     }
 
+    // Simplified for the spec — the real update() only calls validateData()/$this->model->update()
+    // when the payload actually contains title/description/notes fields. A payload touching only
+    // category_ids/tag_ids/role_ids must skip both: CI4's Validation::run() treats an empty rule
+    // set as a failure, and Model::update() throws on a row with nothing in $allowedFields. See
+    // the gotcha in .claude/CLAUDE.md.
+
     /** Fire-and-forget hit from the frontend's copy button — never blocks the actual clipboard copy. */
     public function trackCopy($id = null)
     {

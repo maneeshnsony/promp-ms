@@ -2,6 +2,7 @@
 
 use App\Controllers\Api\V1\AuthController;
 use CodeIgniter\Test\CIUnitTestCase;
+use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Services;
 use Firebase\JWT\JWT;
 use Firebase\JWT\Key;
@@ -19,6 +20,43 @@ use Firebase\JWT\Key;
  */
 final class AuthControllerJwksTest extends CIUnitTestCase
 {
+    use DatabaseTestTrait;
+
+    protected $DBGroup   = 'tests';
+    protected $namespace = null;
+
+    private const GOOGLE_CLIENT_ID = 'phpunit-test-google-client-id';
+    private const GOOGLE_SUB       = 'phpunit-authjwks-test-sub';
+
+    /** @var array<string, string|false> Saved so other test files' reliance on real env values isn't disturbed. */
+    private array $savedEnv = [];
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $this->savedEnv['GOOGLE_CLIENT_ID']     = $_ENV['GOOGLE_CLIENT_ID'] ?? false;
+        $this->savedEnv['GOOGLE_ALLOWED_DOMAIN'] = $_ENV['GOOGLE_ALLOWED_DOMAIN'] ?? false;
+
+        $_ENV['GOOGLE_CLIENT_ID'] = self::GOOGLE_CLIENT_ID;
+        unset($_ENV['GOOGLE_ALLOWED_DOMAIN']);
+    }
+
+    protected function tearDown(): void
+    {
+        foreach ($this->savedEnv as $key => $value) {
+            if ($value === false) {
+                unset($_ENV[$key]);
+            } else {
+                $_ENV[$key] = $value;
+            }
+        }
+
+        $this->db->table('users')->where('google_sub', self::GOOGLE_SUB)->delete();
+
+        parent::tearDown();
+    }
+
     // Test-only RSA keypair — not used for anything but signing fixture tokens in this file.
     public const FIXTURE_PRIVATE_KEY = <<<'PEM'
         -----BEGIN RSA PRIVATE KEY-----
@@ -99,5 +137,77 @@ final class AuthControllerJwksTest extends CIUnitTestCase
         $this->assertSame(401, $response->getStatusCode());
         $body = json_decode($response->getBody(), true);
         $this->assertSame('Invalid Google token', $body['message']);
+    }
+
+    public function testValidTokenReturns200AndIssuesSessionJwt(): void
+    {
+        $token = $this->signFixtureToken([
+            'aud'   => self::GOOGLE_CLIENT_ID,
+            'sub'   => self::GOOGLE_SUB,
+            'email' => 'phpunit-authjwks@example.com',
+            'name'  => 'PHPUnit AuthJwks',
+            'iat'   => time(),
+            'exp'   => time() + 3600,
+        ]);
+
+        $controller = $this->makeControllerWithFixtureJwks(json_encode(['id_token' => $token]));
+
+        $response = $controller->google();
+
+        $this->assertSame(200, $response->getStatusCode());
+        $body = json_decode($response->getBody(), true);
+
+        $this->assertSame('success', $body['status']);
+        $this->assertNotEmpty($body['data']['token']);
+        $this->assertSame('phpunit-authjwks@example.com', $body['data']['user']['email']);
+
+        $this->seeInDatabase('users', [
+            'google_sub' => self::GOOGLE_SUB,
+            'email'      => 'phpunit-authjwks@example.com',
+        ]);
+    }
+
+    public function testAllowedDomainRestrictionRejectsMismatchedHostedDomain(): void
+    {
+        $_ENV['GOOGLE_ALLOWED_DOMAIN'] = 'allowed.example.com';
+
+        $token = $this->signFixtureToken([
+            'aud'   => self::GOOGLE_CLIENT_ID,
+            'sub'   => self::GOOGLE_SUB,
+            'email' => 'user@other.example.com',
+            'hd'    => 'other.example.com',
+            'iat'   => time(),
+            'exp'   => time() + 3600,
+        ]);
+
+        $controller = $this->makeControllerWithFixtureJwks(json_encode(['id_token' => $token]));
+
+        $response = $controller->google();
+
+        $this->assertSame(401, $response->getStatusCode());
+        $body = json_decode($response->getBody(), true);
+        $this->assertSame('Google account domain not allowed', $body['message']);
+    }
+
+    public function testAllowedDomainRestrictionAcceptsMatchingHostedDomain(): void
+    {
+        $_ENV['GOOGLE_ALLOWED_DOMAIN'] = 'allowed.example.com';
+
+        $token = $this->signFixtureToken([
+            'aud'   => self::GOOGLE_CLIENT_ID,
+            'sub'   => self::GOOGLE_SUB,
+            'email' => 'user@allowed.example.com',
+            'hd'    => 'allowed.example.com',
+            'iat'   => time(),
+            'exp'   => time() + 3600,
+        ]);
+
+        $controller = $this->makeControllerWithFixtureJwks(json_encode(['id_token' => $token]));
+
+        $response = $controller->google();
+
+        $this->assertSame(200, $response->getStatusCode());
+        $body = json_decode($response->getBody(), true);
+        $this->assertSame('success', $body['status']);
     }
 }
