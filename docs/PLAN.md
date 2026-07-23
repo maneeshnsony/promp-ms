@@ -106,7 +106,9 @@ flowchart LR
     API --> DB
 ```
 
-All five services (`api`, `nginx`, `web`, `db`, `pgadmin`) run on one Docker network (`prompthub_net`), defined in a single `docker-compose.yml` at the repo root, with the frontend and backend in separate directories (`frontend/`, `backend/`) so each keeps its own Dockerfile and dependency lockfile.
+*(Superseded by [Decisions log](#decisions-log) #6, #7, #9 below — kept here as the original design record.)* All five services (`api`, `nginx`, `web`, `db`, `pgadmin`) run on one Docker network (`prompthub_net`), defined in a single `docker-compose.yml` at the repo root, with the frontend and backend in separate directories (`frontend/`, `backend/`) so each keeps its own Dockerfile and dependency lockfile.
+
+**As built:** three services (`api`, `nginx`, `web`) on network `prompt_ms_net`, container names `prompt-ms-*` — no containerized `db` (the api connects to a host-installed Postgres) and no `pgadmin`. See the real [`docker-compose.yml`](../docker-compose.yml) at the repo root.
 
 ---
 
@@ -180,7 +182,7 @@ Category went from a single nullable column to its own pivot table per your answ
 
 ### DDL
 
-PostgreSQL 18 dialect. Create the database with `CREATE DATABASE prompt_hub WITH ENCODING 'UTF8';` — encoding is database-level in Postgres, not a per-table clause like MySQL's `CHARSET`.
+PostgreSQL 18 dialect. Create the database with `CREATE DATABASE prompt_hub WITH ENCODING 'UTF8';` — encoding is database-level in Postgres, not a per-table clause like MySQL's `CHARSET`. *(As built, the database is named `prompt_ms`, not `prompt_hub` — see [Decisions log](#decisions-log) #7.)*
 
 ```sql
 -- Google-authenticated identities
@@ -556,6 +558,8 @@ class PromptController extends ResourceController
 }
 ```
 
+*(Simplified for the spec — the real `attachRelations()` actually fetches and attaches the categories/tags/roles, and also casts `is_pinned`/`copy_count` to real bool/int since pdo_pgsql returns them as the strings `"t"`/`"f"`/`"123"`; see the gotcha in `.claude/CLAUDE.md`.)*
+
 ### Sample migrations
 
 A "normal" table (the other four — `users`, `categories`, `tags`, `roles` — follow this shape):
@@ -684,8 +688,14 @@ export const { GET, POST } = handlers;
 ```
 
 ```ts
-// middleware.ts — UX redirect only; the real check is AuthFilter on the API
-export { auth as middleware } from '@/auth';
+// proxy.ts — UX redirect only; the real check is AuthFilter on the API
+// (named middleware.ts in earlier drafts of this plan; Next.js 16 renamed the file
+// convention to `proxy` — see Decisions log #10). The real file also short-circuits
+// when NEXT_PUBLIC_SKIP_AUTH=true — simplified here.
+export const proxy = auth((request) => {
+  if (request.auth) return NextResponse.next();
+  return NextResponse.redirect(new URL('/login', request.url));
+});
 
 export const config = {
   matcher: ['/((?!api/auth|login|_next/static|_next/image|favicon.ico).*)'],
@@ -827,7 +837,7 @@ frontend/
 │   ├── api.ts                 # fetch wrapper for the CI4 API
 │   └── types.ts
 ├── auth.ts                    # Auth.js v5 config (see Authentication)
-├── middleware.ts               # route-protection UX (see Authentication)
+├── proxy.ts                    # route-protection UX (see Authentication; renamed from middleware.ts — Decisions log #10)
 ├── next.config.js             # output: 'standalone' (for the Docker build)
 └── Dockerfile
 ```
@@ -1011,7 +1021,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Re
 }
 ```
 
-Filtering/search UX: a `SearchBar` (debounced) and a `FilterSidebar` (category, tag, and role multi-select) write to the URL's query string, which `page.tsx` reads and forwards straight into `getPrompts()` — filters stay shareable via link, and there's no extra client state to keep in sync.
+Filtering/search UX: a `SearchBar` (debounced) and a `FilterSidebar` write to the URL's query string, which `page.tsx` reads and forwards straight into `getPrompts()` — filters stay shareable via link, and there's no extra client state to keep in sync. *(As built, `FilterSidebar` is single-select per facet, not multi-select — `scopeFilters()` only accepts one id per category/tag/role; see the Phase 2 plan's scope decision and the gotcha in `.claude/CLAUDE.md`.)*
 
 ---
 
@@ -1043,6 +1053,8 @@ Category and role badges pull from a fixed set of ~10 desaturated hues, auto-ass
 ---
 
 ## Docker setup
+
+*(The original 5-service design below — with containerized `db`/`pgadmin` and `prompthub_*` naming — is superseded by [Decisions log](#decisions-log) #6, #7, #9. Kept as the original design record; see the real [`docker-compose.yml`](../docker-compose.yml) at the repo root for what's actually running: 3 services — `api`, `nginx`, `web` — on network `prompt_ms_net`, container names `prompt-ms-*`, host-installed Postgres reached via `host.docker.internal`, no `pgadmin`.)*
 
 ```yaml
 # docker-compose.yml
@@ -1210,6 +1222,8 @@ server {
 
 ```bash
 # backend/.env (excerpt — CodeIgniter's dotted-key format)
+# As built: hostname/database/username below are host.docker.internal/prompt_ms/postgres —
+# see Decisions log #6, #7 (no containerized `db` service, and prompt_ms naming, not prompthub).
 CI_ENVIRONMENT = production
 app.baseURL = 'http://localhost:8080/'
 database.default.hostname = db
@@ -1347,7 +1361,7 @@ Both Dockerfiles use multi-stage builds specifically so the shipped image is sma
 | 8 | Auto-increment ids (2026-07-18) | **BIGSERIAL** (CI4 Postgre Forge's idiom) accepted instead of this doc's `GENERATED ALWAYS AS IDENTITY` — functionally equivalent for app writes; revisit only if bulk imports with explicit ids arrive (Phase 4) | All 6 `id` columns in the live schema |
 | 9 | pgadmin service (2026-07-18) | **Removed** — nothing depends on it (the api talks to host Postgres directly), it wasn't auto-wired to the DB, and any host client (`psql`, DBeaver) already reaches `host.docker.internal:5432`. Supersedes the `pgadmin` service in the Docker section's YAML | `docker-compose.yml` (3 services), root `.env.example` (no `PGADMIN_PASSWORD`) |
 | 10 | `middleware.ts` naming (2026-07-18) | **Renamed to `proxy.ts`** — Next.js 16 deprecated the `middleware` file convention in favor of `proxy` (same `NextRequest`/`NextResponse` API, function/export renamed). Supersedes every `middleware.ts` reference in the [Authentication](#authentication--google-oauth) and [Frontend](#frontend--nextjs-ui) sections | `frontend/proxy.ts` |
-| 11 | Auth bypass flag (2026-07-18) | **Added `SKIP_AUTH` / `NEXT_PUBLIC_SKIP_AUTH`**, dev/testing-only, default `false` (opt-in to skip, never opt-in to enforce) — lets `AuthFilter` and `proxy.ts` pass requests through unauthenticated without wiring up real Google OAuth locally. Full design in `docs/PHASE1-AUTH-PLAN.md` | `backend/app/Filters/AuthFilter.php`, `frontend/proxy.ts`, `frontend/lib/api.ts`, `docker-compose.yml` |
+| 11 | Auth bypass flag (2026-07-18) | **Added `SKIP_AUTH` / `NEXT_PUBLIC_SKIP_AUTH`**, dev/testing-only, default `false` (opt-in to skip, never opt-in to enforce) — lets `AuthFilter` and `proxy.ts` pass requests through unauthenticated without wiring up real Google OAuth locally. Full design in `docs/local/PHASE1-AUTH-PLAN.md` (gitignored scratch doc) | `backend/app/Filters/AuthFilter.php`, `frontend/proxy.ts`, `frontend/lib/api.ts`, `docker-compose.yml` |
 | 12 | Route group filter key (2026-07-18) | `RouteCollection::group()` takes the option key **`filter`** (singular), not `filters` as shown in this doc's route snippets — the latter is silently ignored by CI4 4.7, so no filters attach at all | `backend/app/Config/Routes.php` |
 | 13 | PHP-FPM `clear_env` (2026-07-18) | Alpine's packaged php-fpm defaults to `clear_env = yes`, which strips `docker-compose.yml`'s `environment:` overrides (`GOOGLE_CLIENT_ID`, `SKIP_AUTH`) from FPM workers even though they're visible to `docker exec`/CLI. Set `clear_env = no` in the FPM pool config | `backend/docker/zz-prompt-ms.conf` |
 | 14 | PHPUnit `database.tests` target (2026-07-18) | **Dedicated `prompt_ms_test` database** on the same host Postgres server — never the real `prompt_ms` dev database. `CIUnitTestCase`'s `DatabaseTestTrait` defaults to `$refresh = true`, which regresses (drops) *all* migrations on whatever DB the `tests` DBGroup points at before every run; pointing it at `prompt_ms` briefly wiped the dev schema down to just `migrations`/`factories` during this work, since Postgres migration history is tracked per physical database, not per DBGroup name. Restored via `php spark migrate` + `db:seed DatabaseSeeder` | `backend/phpunit.dist.xml`, `backend/tests/unit/UserModelTest.php` (`$namespace = null` to run all app migrations against it) |

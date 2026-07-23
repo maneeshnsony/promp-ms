@@ -8,7 +8,7 @@ description: Drives the frontend dashboard MVP end-to-end with Playwright (dashb
 There is no committed frontend unit-test framework in this repo (no Vitest/React
 Testing Library config — see `docs/TODO.md`'s Testing checklist). This skill instead
 automates the manual browser verification from
-`docs/PHASE1-FRONTEND-DASHBOARD-PLAN.md`'s "Verification" section using Playwright's
+`docs/local/PHASE1-FRONTEND-DASHBOARD-PLAN.md`'s "Verification" section using Playwright's
 Python client, against a real `next dev` server and the real backend API.
 
 ## Instructions
