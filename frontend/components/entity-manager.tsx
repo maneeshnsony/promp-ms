@@ -26,6 +26,7 @@ interface Entity {
 
 export function EntityManager<T extends Entity>({
   title,
+  singular = title.slice(0, -1),
   items,
   supportsColor = false,
   createAction,
@@ -33,6 +34,10 @@ export function EntityManager<T extends Entity>({
   deleteAction,
 }: {
   title: string;
+  /** Singular form of `title`, used in button/dialog/toast copy. Defaults to chopping a
+   * trailing "s", which is wrong for irregular plurals like "Categories" — pass it explicitly
+   * in those cases. */
+  singular?: string;
   items: T[];
   supportsColor?: boolean;
   createAction: (body: { name: string; slug: string; color?: string }) => Promise<T>;
@@ -71,10 +76,10 @@ export function EntityManager<T extends Entity>({
       const body = { name, slug: slugify(name), ...(supportsColor && color ? { color } : {}) };
       if (editing) {
         await updateAction(editing.id, body);
-        toast.success(`${title.slice(0, -1)} updated.`);
+        toast.success(`${singular} updated.`);
       } else {
         await createAction(body);
-        toast.success(`${title.slice(0, -1)} created.`);
+        toast.success(`${singular} created.`);
       }
       setOpen(false);
     } catch (error) {
@@ -88,7 +93,7 @@ export function EntityManager<T extends Entity>({
     if (!confirm(`Delete "${item.name}"?`)) return;
     try {
       await deleteAction(item.id);
-      toast.success(`${title.slice(0, -1)} deleted.`);
+      toast.success(`${singular} deleted.`);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Something went wrong.");
     }
@@ -100,11 +105,11 @@ export function EntityManager<T extends Entity>({
         <h1 className="text-xl font-semibold text-foreground">{title}</h1>
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild>
-            <Button onClick={openCreate}>New {title.slice(0, -1).toLowerCase()}</Button>
+            <Button onClick={openCreate}>New {singular.toLowerCase()}</Button>
           </DialogTrigger>
           <DialogContent className="sm:max-w-sm">
             <DialogHeader>
-              <DialogTitle>{editing ? `Rename ${title.slice(0, -1).toLowerCase()}` : `New ${title.slice(0, -1).toLowerCase()}`}</DialogTitle>
+              <DialogTitle>{editing ? `Rename ${singular.toLowerCase()}` : `New ${singular.toLowerCase()}`}</DialogTitle>
             </DialogHeader>
             <form onSubmit={handleSubmit} className="flex flex-col gap-4">
               <div className="flex flex-col gap-1.5">

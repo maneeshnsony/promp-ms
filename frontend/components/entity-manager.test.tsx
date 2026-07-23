@@ -165,6 +165,7 @@ describe("EntityManager", () => {
       <TooltipProvider>
         <EntityManager<Item>
           title="Categories"
+          singular="Category"
           items={[]}
           supportsColor
           createAction={createAction}
@@ -174,11 +175,32 @@ describe("EntityManager", () => {
       </TooltipProvider>
     );
 
-    await userEvent.click(screen.getByRole("button", { name: /New categor/ }));
+    await userEvent.click(screen.getByRole("button", { name: "New category" }));
     await userEvent.type(screen.getByLabelText("Name"), "Cat");
     await userEvent.type(screen.getByLabelText(/Color/), "#4f46e5");
     await userEvent.click(screen.getByRole("button", { name: "Create" }));
 
     expect(createAction).toHaveBeenCalledWith({ name: "Cat", slug: "cat", color: "#4f46e5" });
+    expect(toastSuccess).toHaveBeenCalledWith("Category created.");
+  });
+
+  it("uses an explicit singular label instead of chopping a trailing 's' (Categories -> Category, not Categorie)", async () => {
+    const createAction = vi.fn().mockResolvedValue({ id: 1, name: "Cat", slug: "cat" });
+    render(
+      <TooltipProvider>
+        <EntityManager<Item>
+          title="Categories"
+          singular="Category"
+          items={[]}
+          createAction={createAction}
+          updateAction={vi.fn()}
+          deleteAction={vi.fn()}
+        />
+      </TooltipProvider>
+    );
+
+    expect(screen.getByRole("button", { name: "New category" })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "New category" }));
+    expect(screen.getByRole("heading", { name: "New category" })).toBeInTheDocument();
   });
 });
