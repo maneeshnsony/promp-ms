@@ -1,9 +1,11 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 
-const { authMock } = vi.hoisted(() => ({
+const { authMock, redirectMock } = vi.hoisted(() => ({
   authMock: vi.fn(),
+  redirectMock: vi.fn(),
 }));
 vi.mock("@/auth", () => ({ auth: authMock }));
+vi.mock("next/navigation", () => ({ redirect: redirectMock }));
 
 function jsonResponse(body: unknown, ok = true, status = 200) {
   return {
@@ -22,6 +24,7 @@ describe("lib/api", () => {
     vi.stubGlobal("fetch", fetchMock);
     authMock.mockReset();
     authMock.mockResolvedValue(null);
+    redirectMock.mockReset();
     vi.stubEnv("API_BASE_URL", "http://api.internal/v1");
     vi.stubEnv("NEXT_PUBLIC_API_BASE_URL", "http://api.public/v1");
     originalWindow = globalThis.window;
@@ -122,6 +125,54 @@ describe("lib/api", () => {
         expect(authMock).not.toHaveBeenCalled();
         const headers = fetchMock.mock.calls[0][1].headers as Headers;
         expect(headers.get("Authorization")).toBeNull();
+      });
+
+      it("does not redirect on a 401 when auth is skipped", async () => {
+        const { apiFetch } = await import("@/lib/api");
+        goServer();
+        fetchMock.mockResolvedValue(jsonResponse({}, false, 401));
+
+        await apiFetch("/prompts");
+
+        expect(redirectMock).not.toHaveBeenCalled();
+      });
+    });
+
+    describe("on a 401 from the backend", () => {
+      beforeEach(() => {
+        // A sibling describe stubs NEXT_PUBLIC_SKIP_AUTH=true and calls resetModules() so
+        // its own dynamic import re-reads the env; without resetting again here, a later
+        // `import("@/lib/api")` would return that stale cached module (skipAuth still true).
+        vi.resetModules();
+      });
+
+      it("redirects to /login on the server (expired backend session)", async () => {
+        const { apiFetch } = await import("@/lib/api");
+        goServer();
+        fetchMock.mockResolvedValue(jsonResponse({}, false, 401));
+
+        await apiFetch("/prompts");
+
+        expect(redirectMock).toHaveBeenCalledWith("/login");
+      });
+
+      it("does not redirect on the client", async () => {
+        const { apiFetch } = await import("@/lib/api");
+        fetchMock.mockResolvedValue(jsonResponse({}, false, 401));
+
+        await apiFetch("/prompts");
+
+        expect(redirectMock).not.toHaveBeenCalled();
+      });
+
+      it("does not redirect on a non-401 error status", async () => {
+        const { apiFetch } = await import("@/lib/api");
+        goServer();
+        fetchMock.mockResolvedValue(jsonResponse({}, false, 500));
+
+        await apiFetch("/prompts");
+
+        expect(redirectMock).not.toHaveBeenCalled();
       });
     });
   });

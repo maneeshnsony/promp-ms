@@ -1,25 +1,35 @@
+import { redirect } from "next/navigation";
+
 import { auth } from "@/auth";
 import type { Category, Paginated, Prompt, PromptFormValues, PromptVersion, Role, Tag } from "@/lib/types";
 
 const skipAuth = process.env.NEXT_PUBLIC_SKIP_AUTH === "true";
 
 export async function apiFetch(path: string, options: RequestInit = {}) {
-  const baseUrl =
-    typeof window === "undefined"
-      ? process.env.API_BASE_URL
-      : process.env.NEXT_PUBLIC_API_BASE_URL;
+  const isServer = typeof window === "undefined";
+  const baseUrl = isServer ? process.env.API_BASE_URL : process.env.NEXT_PUBLIC_API_BASE_URL;
 
   const headers = new Headers(options.headers);
   headers.set("Content-Type", "application/json");
 
   if (!skipAuth) {
-    const session = typeof window === "undefined" ? await auth() : null;
+    const session = isServer ? await auth() : null;
     if (session?.backendToken) {
       headers.set("Authorization", `Bearer ${session.backendToken}`);
     }
   }
 
-  return fetch(`${baseUrl}${path}`, { ...options, headers });
+  const res = await fetch(`${baseUrl}${path}`, { ...options, headers });
+
+  // The backend session JWT is short-lived (1h, see AuthController) but the frontend's
+  // NextAuth session cookie outlives it with no refresh path — a 401 here means the
+  // frontend still shows the user as signed in while the backend token has expired.
+  // Force re-authentication instead of letting callers surface an uncaught error.
+  if (isServer && !skipAuth && res.status === 401) {
+    redirect("/login");
+  }
+
+  return res;
 }
 
 interface Envelope<T> {
