@@ -54,6 +54,7 @@ Prompts, categories, tags, roles, Google sign-in.
 
 ### Auth ✅ Complete
 - [x] `AuthController::google` — verify Google ID token against JWKS, check `aud` matches `GOOGLE_CLIENT_ID`, optional `hd` domain check
+  _Bug found and fixed: `iss` was never checked. Not exploitable given the hardcoded JWKS source, but now validates the full aud/iss/hd/signature checklist._
 - [x] `UserModel::upsertFromGoogle` — find-or-create by `google_sub`
 - [x] Mint short-lived (1h) backend session JWT (`HS256`, `APP_JWT_SECRET`)
 - [x] `AuthFilter` — the real enforcement point; rejects any `api/v1` request without a valid bearer token (401). _Also gates on the dev/testing-only `SKIP_AUTH` flag (default `false`) — see `docs/local/PHASE1-AUTH-PLAN.md` (gitignored scratch doc; may not exist in your checkout)._
@@ -72,11 +73,13 @@ Prompts, categories, tags, roles, Google sign-in.
 - [x] `PromptController::index` — pagination (`page`, `per_page`, default 20, capped 100), ordered by `is_pinned DESC, created_at DESC`
 - [x] `PromptController::show`
 - [x] `PromptController::create` — validates, sets `created_by`, syncs `category_ids`/`tag_ids`/`role_ids`
-- [x] `PromptController::update` — snapshots pre-edit title/description into `prompt_versions` before applying changes. _Bug found and fixed via a new pivot-clear test (`testUpdateWithEmptyCategoryIdsArrayClearsExistingPivot`): a payload touching only `category_ids`/`tag_ids`/`role_ids` (no `title`/`description`/`notes`) spuriously 400'd — CI4's `Validation::run()` treats an empty computed rule set as a failure — and would then throw `DataException::forEmptyDataset()` trying to persist a row with nothing in `PromptModel::$allowedFields`. Both are now guarded against; pivot syncs still run regardless of whether any scalar column changed._
+- [x] `PromptController::update` — snapshots pre-edit title/description into `prompt_versions` before applying changes. _Bug found and fixed via a new pivot-clear test (`testUpdateWithEmptyCategoryIdsArrayClearsExistingPivot`): a payload touching only `category_ids`/`tag_ids`/`role_ids` (no `title`/`description`/`notes`) spuriously 400'd — CI4's `Validation::run()` treats an empty computed rule set as a failure — and would then throw `DataException::forEmptyDataset()` trying to persist a row with nothing in `PromptModel::$allowedFields`. Both are now guarded against; pivot syncs still run regardless of whether any scalar column changed. A second bug found and fixed later: `created_by` was in the update whitelist, letting any authenticated user reassign a prompt's attribution via `PUT`; now explicitly excluded._
 - [x] `PromptController::delete` — soft delete
 - [x] `PromptController::trackCopy` — fire-and-forget, increments `copy_count`, returns 204
 - [x] `PromptController::versions` — returns version history for a prompt
+  _Bug found and fixed: didn't check the prompt existed first (unlike every other endpoint), so a nonexistent id returned 200 + `[]` instead of 404._
 - [x] `syncPivot()` helper — shared many-to-many sync for category/tag/role (delete-then-insert; `null` leaves relation untouched on partial update)
+  _Bug found and fixed: no transaction wrapping meant a mid-sync failure (e.g. a stale id) left the delete committed with nothing re-inserted, permanently dropping a prompt's associations behind a 500. Now wrapped in a transaction — see the CLAUDE.md note on `transException`/`transStrict`._
 - [x] `attachRelations()` — implemented for real (bulk-queries categories/tags/roles per prompt list, one query per relation)
 - [x] `CategoryModel`/`TagModel`/`RoleModel` + `PromptVersionModel`
 - [x] `CategoryController` — plain CRUD (index/create/update/delete)
@@ -114,6 +117,7 @@ Search, filtering, curation.
 - [x] Empty states — `components/empty-state.tsx`: distinct copy for "no prompts at all" vs "search/filters active, zero matches" (with a clear-filters action)
 - [x] Loading states — `app/loading.tsx`, automatic Suspense boundary with skeleton cards matching the grid layout
 - [x] `app/categories/page.tsx`, `app/tags/page.tsx`, `app/roles/page.tsx` — management UIs built on a shared `components/entity-manager.tsx` (list, inline create/rename via dialog, confirm-before-delete), backed by new `lib/api.ts` CRUD helpers and `lib/actions.ts` Server Actions
+  _Bug found and fixed: the Categories page showed "Categorie" (chopping a trailing `s` off the title). `EntityManager` now takes an explicit `singular` prop._
 
 ---
 
@@ -124,6 +128,7 @@ The richer approved features.
 - [x] `{slot}` placeholder detection — `lib/slots.ts`'s `extractSlots`/`fillSlots`, regex `/\{(\w+)\}/g` over `description`
 - [x] `components/slot-fill-dialog.tsx` — one input per unique token in first-seen order, live preview, Copy disabled until every slot is filled; wired into `prompt-card.tsx`'s copy-button click handler (opens instead of direct copy only when slots are present)
 - [x] `components/version-history-dialog.tsx` — read-only view over `GET /api/v1/prompts/{id}/versions`, newest first, relative timestamps via `Intl.RelativeTimeFormat`, loading skeleton + error toast + "No edits yet" empty state; opened from a new History action on `prompt-card.tsx`
+  _Bug found and fixed: fetched directly from the client, so `apiFetch` never attached the bearer token and the route always 401'd in a real deployment. Now routed through a `getPromptVersionsAction` Server Action._
 
 ---
 
@@ -155,6 +160,7 @@ Apply throughout implementation, not tied to a single phase.
 ### Security & non-functional
 - [x] Verify every Google ID token server-side (signature via JWKS, `aud`, optional `hd`) — never trust unverified claims. Verified existing behavior; JWKS source is now swappable for testing (see above) without changing production behavior.
 - [x] Keep backend session JWT short-lived (1h) with minimal payload (user id, email only) — verified, unchanged.
+  _Bug found and fixed: the frontend had no refresh path for that 1h token against a much longer-lived NextAuth session, so the dashboard hard-crashed for a still-"logged in" user once it expired. `apiFetch` now redirects to `/login` on a server-side 401._
 - [x] `AuthFilter` remains the real enforcement point — Next.js middleware stays UX-only — verified, unchanged.
 - [x] CodeIgniter Query Builder everywhere — no raw SQL string concatenation — verified across existing and new controllers (category/tag/role management, entity CRUD).
 - [x] Never route prompt content through `dangerouslySetInnerHTML` — verified, still true of every Phase 2/3 component added (`SlotFillDialog`, `VersionHistoryDialog`, `EntityManager`).
@@ -162,4 +168,5 @@ Apply throughout implementation, not tied to a single phase.
 - [x] Rate-limit write endpoints and `/auth/google` — `App\Filters\RateLimitFilter` (CI4's built-in `Throttler`, 60 req/min per authenticated user id or IP), applied to all `POST`/`PUT`/`DELETE` routes under `api/v1` and to `auth/google` in `app/Config/Routes.php`. `SKIP_RATE_LIMIT=true` bypasses it the same way `SKIP_AUTH` bypasses auth, for local/dev use.
 - [ ] Serve over HTTPS outside local dev (required for Google OAuth redirect URIs) — pure deployment/infra config, not a code change in this repo.
 - [x] Secrets (`AUTH_SECRET`, `GOOGLE_CLIENT_SECRET`, `APP_JWT_SECRET`, DB password) kept in git-ignored `.env` files; commit `.env.example` instead — verified, unchanged.
+- [x] Backend bearer token never exposed to client-side JS — `auth.ts`'s `session()` callback previously copied it onto the NextAuth `session` object, which the public `GET /api/auth/session` route returns verbatim to any same-origin script. Removed; `apiFetch` now decodes it server-side via `next-auth/jwt`'s `getToken()` instead.
 - [ ] Automate PostgreSQL backups (`pg_dump` cron or managed-DB snapshots) once real data accumulates — infra/ops runbook item, not application code.
