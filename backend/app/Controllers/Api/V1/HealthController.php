@@ -23,13 +23,7 @@ class HealthController extends BaseController
 
     public function index(): ResponseInterface
     {
-        $dbUp = false;
-        try {
-            // Cheapest possible round-trip that proves the connection is live.
-            $dbUp = Database::connect()->query('SELECT 1') !== false;
-        } catch (Throwable $e) {
-            log_message('error', 'Health check DB probe failed: {message}', ['message' => $e->getMessage()]);
-        }
+        $dbUp = $this->isDatabaseUp();
 
         $data = [
             'service'   => 'prompt-ms-api',
@@ -49,5 +43,21 @@ class HealthController extends BaseController
             'status' => 'success',
             'data'   => $data,
         ], ResponseInterface::HTTP_OK);
+    }
+
+    /**
+     * Overridden in tests (a subclass swaps in a forced-failure return) since simulating a
+     * real DB outage isn't practical/deterministic in the test environment.
+     */
+    protected function isDatabaseUp(): bool
+    {
+        try {
+            // Cheapest possible round-trip that proves the connection is live.
+            return Database::connect()->query('SELECT 1') !== false;
+        } catch (Throwable $e) {
+            log_message('error', 'Health check DB probe failed: {message}', ['message' => $e->getMessage()]);
+
+            return false;
+        }
     }
 }

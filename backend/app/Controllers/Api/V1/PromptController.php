@@ -74,9 +74,13 @@ class PromptController extends ResourceController
 
         $data = $this->request->getJSON(true);
         // Partial updates are allowed (see syncPivot's null-means-untouched contract), so
-        // only validate the fields actually present in this request's payload.
+        // only validate the fields actually present in this request's payload. A payload
+        // touching only category_ids/tag_ids/role_ids (no title/description/notes) yields
+        // an empty $rules here — CI4's Validation::run() treats an empty ruleset as a
+        // failure (a guard against forgetting to set rules), so that case must skip
+        // validation entirely rather than be misread as invalid input.
         $rules = array_intersect_key($this->model->validationRules, $data);
-        if (! $this->validateData($data, $rules)) {
+        if ($rules !== [] && ! $this->validateData($data, $rules)) {
             return $this->failValidationErrors($this->validator->getErrors());
         }
 
@@ -87,7 +91,14 @@ class PromptController extends ResourceController
             'edited_by'   => AuthContext::id(),
         ]);
 
-        $this->model->skipValidation(true)->update($id, $data);
+        // A payload touching only category_ids/tag_ids/role_ids has nothing in
+        // $this->model->allowedFields, so calling update() with it would strip down to an
+        // empty row and throw DataException::forEmptyDataset() — skip the column update
+        // entirely in that case; the pivot syncs below still run regardless.
+        $updatableFields = array_intersect_key($data, array_flip($this->model->allowedFields));
+        if ($updatableFields !== []) {
+            $this->model->skipValidation(true)->update($id, $updatableFields);
+        }
 
         $this->syncPivot('prompt_category', (int) $id, 'category_id', $data['category_ids'] ?? null);
         $this->syncPivot('prompt_tag', (int) $id, 'tag_id', $data['tag_ids'] ?? null);

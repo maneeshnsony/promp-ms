@@ -12,6 +12,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `PromptController::attachRelations()` (backend) casts `is_pinned`/`copy_count` before responding — pdo_pgsql returns booleans/bigints as the strings `"t"`/`"f"`/`"123"`, which round-trip as truthy JS strings if left uncast.
 - `components/prompt-grid.tsx` persists the 1/2/3-column toggle to `localStorage` under `prompt-grid-columns`, but always defaults to 1 column on first render regardless of the stored value — that's deliberate, to avoid a server/client hydration mismatch, not a bug to "fix" by reading `localStorage` during the initial render.
 - `prompt-card.tsx`'s clone action prefixes the cloned title with `"CLONE ~ "` — it's the only signal that a prompt is a clone (no separate `cloned_from` field), so preserve that convention if you touch clone behavior.
+- `PromptController::update()` skips both validation and the model `update()` call when the request body touches only `category_ids`/`tag_ids`/`role_ids` (no `title`/`description`/`notes`) — CI4's `Validation::run()` treats an empty computed rule set as a failure, and `Model::update()` throws `DataException::forEmptyDataset()` on a row with nothing in `allowedFields`. Both are guarded by an explicit non-empty check before each call; the pivot syncs run unconditionally regardless. Don't remove those guards without re-running `testUpdateWithEmptyCategoryIdsArrayClearsExistingPivot` in `tests/unit/PromptControllerTest.php`.
+- `HealthController::isDatabaseUp()` is a protected, overridable method (same pattern as `AuthController::googleJwks()`) specifically so `tests/unit/HealthControllerTest.php` can force the 503 branch via a subclass override — don't inline the DB probe back into `index()`.
 
 ### Commands
 

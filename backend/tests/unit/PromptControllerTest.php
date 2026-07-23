@@ -290,4 +290,62 @@ final class PromptControllerTest extends CIUnitTestCase
         $this->assertSame([$pinnedOlder, $newerUnpinned, $older], $ids);
         $this->assertSame(3, $body['meta']['total']);
     }
+
+    public function testIndexClampsPerPageAboveHundredToOneHundred(): void
+    {
+        $this->insertPrompt(['title' => self::TITLE_PREFIX . ' PerPageClampHigh']);
+
+        $result = $this->withHeaders($this->authHeader())
+            ->get('api/v1/prompts?search=' . self::TITLE_PREFIX . '%20PerPageClampHigh&per_page=500');
+
+        $result->assertStatus(200);
+        $body = json_decode($result->getJSON(), true);
+        $this->assertSame(100, $body['meta']['per_page']);
+    }
+
+    public function testIndexClampsPerPageAndPageBelowOne(): void
+    {
+        $this->insertPrompt(['title' => self::TITLE_PREFIX . ' PerPageClampLowA']);
+        $this->insertPrompt(['title' => self::TITLE_PREFIX . ' PerPageClampLowB']);
+
+        $result = $this->withHeaders($this->authHeader())
+            ->get('api/v1/prompts?search=' . self::TITLE_PREFIX . '%20PerPageClampLow&per_page=0&page=0');
+
+        $result->assertStatus(200);
+        $body = json_decode($result->getJSON(), true);
+        $this->assertSame(1, $body['meta']['per_page']);
+        $this->assertSame(1, $body['meta']['page']);
+        $this->assertCount(1, $body['data'], 'per_page must be floored to 1, so only a single row comes back');
+    }
+
+    public function testIndexPageBeyondResultsReturnsEmptyDataWithCorrectMeta(): void
+    {
+        $this->insertPrompt(['title' => self::TITLE_PREFIX . ' PageBeyondResults']);
+
+        $result = $this->withHeaders($this->authHeader())
+            ->get('api/v1/prompts?search=' . self::TITLE_PREFIX . '%20PageBeyondResults&per_page=10&page=999');
+
+        $result->assertStatus(200);
+        $body = json_decode($result->getJSON(), true);
+        $this->assertSame([], $body['data']);
+        $this->assertSame(1, $body['meta']['total']);
+    }
+
+    public function testUpdateWithEmptyCategoryIdsArrayClearsExistingPivot(): void
+    {
+        $ids = $this->seedRelations();
+
+        $promptId = $this->insertPrompt(['title' => self::TITLE_PREFIX . ' ClearPivot', 'description' => 'Original']);
+        $this->db->table('prompt_category')->insert(['prompt_id' => $promptId, 'category_id' => $ids['category']]);
+
+        $result = $this->withHeaders($this->authHeader())
+            ->withBodyFormat('json')
+            ->put('api/v1/prompts/' . $promptId, ['category_ids' => []]);
+
+        $result->assertStatus(200);
+        $body = json_decode($result->getJSON(), true);
+
+        $this->assertSame([], $body['data']['categories']);
+        $this->dontSeeInDatabase('prompt_category', ['prompt_id' => $promptId]);
+    }
 }
