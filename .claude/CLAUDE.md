@@ -14,12 +14,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `prompt-card.tsx`'s clone action prefixes the cloned title with `"CLONE ~ "` — it's the only signal that a prompt is a clone (no separate `cloned_from` field), so preserve that convention if you touch clone behavior.
 - `PromptController::update()` skips both validation and the model `update()` call when the request body touches only `category_ids`/`tag_ids`/`role_ids` (no `title`/`description`/`notes`) — CI4's `Validation::run()` treats an empty computed rule set as a failure, and `Model::update()` throws `DataException::forEmptyDataset()` on a row with nothing in `allowedFields`. Both are guarded by an explicit non-empty check before each call; the pivot syncs run unconditionally regardless. Don't remove those guards without re-running `testUpdateWithEmptyCategoryIdsArrayClearsExistingPivot` in `tests/unit/PromptControllerTest.php`.
 - `HealthController::isDatabaseUp()` is a protected, overridable method (same pattern as `AuthController::googleJwks()`) specifically so `tests/unit/HealthControllerTest.php` can force the 503 branch via a subclass override — don't inline the DB probe back into `index()`.
+- `frontend/vitest.setup.ts` polyfills three browser APIs jsdom doesn't provide under this Vitest 4/Node 24 combo: `ResizeObserver` (cmdk, used by `MultiSelect`, requires it), `Element.prototype.scrollIntoView` (cmdk calls it on selection change), and `localStorage` (Node 24's experimental global `localStorage` shadows jsdom's per-window one, leaving both `localStorage` and `window.localStorage` `undefined` — not a jsdom bug to work around differently). These aren't dead code — don't remove them without re-running the full frontend suite (`npm test` from `frontend/`) to confirm the real API is actually reachable.
 
 ### Commands
 
 - Repo root: `docker compose build` / `docker compose up -d` (3 services; see Architecture). Requires a reachable **host** Postgres — see below.
 - Migrations/seeds (inside the api container): `docker exec prompt-ms-api php spark migrate` and `php spark db:seed DatabaseSeeder`.
-- `backend/`: `composer test` (PHPUnit). `frontend/`: `npm run dev` / `npm run build` / `npm run lint`.
+- `backend/`: `composer test` (PHPUnit). `frontend/`: `npm run dev` / `npm run build` / `npm run lint` / `npm test` (Vitest) / `npm run test:coverage` (adds `@vitest/coverage-v8`; no enforced threshold yet).
 - Local secrets live in git-ignored `.env` (repo root) and `backend/.env`; templates are the committed `.env.example` files. `GOOGLE_CLIENT_ID` is single-sourced in the root `.env` (compose injects it into both `web` and `api`).
 
 ## What this project is

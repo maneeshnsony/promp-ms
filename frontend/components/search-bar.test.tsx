@@ -41,4 +41,15 @@ describe("SearchBar", () => {
     await user.clear(screen.getByRole("textbox"));
     await waitFor(() => expect(push).toHaveBeenCalledWith("/?page=1"), { timeout: 1000 });
   });
+
+  it("syncs its value when the URL search param changes externally (e.g. back/forward navigation)", () => {
+    params = new URLSearchParams("search=first");
+    const { rerender } = render(<SearchBar />);
+    expect(screen.getByRole("textbox")).toHaveValue("first");
+
+    params = new URLSearchParams("search=second");
+    rerender(<SearchBar />);
+
+    expect(screen.getByRole("textbox")).toHaveValue("second");
+  });
 });
