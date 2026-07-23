@@ -1,9 +1,21 @@
+import { headers as nextHeaders } from "next/headers";
 import { redirect } from "next/navigation";
+import { getToken } from "next-auth/jwt";
 
-import { auth } from "@/auth";
 import type { Category, Paginated, Prompt, PromptFormValues, PromptVersion, Role, Tag } from "@/lib/types";
 
 const skipAuth = process.env.NEXT_PUBLIC_SKIP_AUTH === "true";
+
+// Reads the backend bearer token by decoding the NextAuth session cookie directly, rather
+// than via auth()'s `session` object — that object is also what NextAuth's own, unauthenticated
+// GET /api/auth/session route returns verbatim to any same-origin script, so putting a live
+// bearer token on it would hand out the token to anything that can run JS on this origin
+// (widening the blast radius of any future XSS), not just to our own server-side code.
+async function getBackendToken(): Promise<string | null> {
+  const token = await getToken({ req: { headers: await nextHeaders() }, secret: process.env.AUTH_SECRET });
+
+  return typeof token?.backendToken === "string" ? token.backendToken : null;
+}
 
 export async function apiFetch(path: string, options: RequestInit = {}) {
   const isServer = typeof window === "undefined";
@@ -13,9 +25,9 @@ export async function apiFetch(path: string, options: RequestInit = {}) {
   headers.set("Content-Type", "application/json");
 
   if (!skipAuth) {
-    const session = isServer ? await auth() : null;
-    if (session?.backendToken) {
-      headers.set("Authorization", `Bearer ${session.backendToken}`);
+    const backendToken = isServer ? await getBackendToken() : null;
+    if (backendToken) {
+      headers.set("Authorization", `Bearer ${backendToken}`);
     }
   }
 

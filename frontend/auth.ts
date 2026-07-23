@@ -27,10 +27,11 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
 
       return token;
     },
-    async session({ session, token }) {
-      session.backendToken = token.backendToken;
-
-      return session;
-    },
+    // No session callback: the backend bearer token stays only on the encrypted `token`
+    // (JWT cookie), never copied onto `session` — that object is also what NextAuth's own,
+    // unauthenticated GET /api/auth/session route returns to any same-origin script, so
+    // putting a live bearer token there would widen the blast radius of any future XSS.
+    // Server-side code reads it via lib/api.ts's getBackendToken(), which decodes the
+    // session cookie directly instead of going through auth()/session().
   },
 });
