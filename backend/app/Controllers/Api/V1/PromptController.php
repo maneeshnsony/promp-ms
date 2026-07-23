@@ -53,11 +53,26 @@ class PromptController extends ResourceController
         }
 
         $data['created_by'] = AuthContext::id();
-        $id = $this->model->insert($data, true);
 
-        $this->syncPivot('prompt_category', (int) $id, 'category_id', $data['category_ids'] ?? []);
-        $this->syncPivot('prompt_tag', (int) $id, 'tag_id', $data['tag_ids'] ?? []);
-        $this->syncPivot('prompt_role', (int) $id, 'role_id', $data['role_ids'] ?? []);
+        $db = db_connect();
+        // Query failures inside a transStart()/transComplete() block are swallowed by
+        // default (transStatus is just flagged false, nothing throws) — transException(true)
+        // makes a failed query throw instead, so a bad id in category_ids/tag_ids/role_ids
+        // surfaces as a 500 rather than silently rolling back while still responding 2xx.
+        // transStrict(false) matters because $db is a shared, long-lived connection: in
+        // strict mode a failed transaction leaves transStatus permanently false, silently
+        // rolling back every later transaction on this connection too (not just this request).
+        $db->transStrict(false)->transException(true)->transStart();
+        try {
+            $id = $this->model->insert($data, true);
+            $this->syncPivot('prompt_category', (int) $id, 'category_id', $data['category_ids'] ?? []);
+            $this->syncPivot('prompt_tag', (int) $id, 'tag_id', $data['tag_ids'] ?? []);
+            $this->syncPivot('prompt_role', (int) $id, 'role_id', $data['role_ids'] ?? []);
+        } catch (\Throwable $e) {
+            $db->transRollback();
+            throw $e;
+        }
+        $db->transComplete();
 
         return $this->respondCreated([
             'status' => 'success',
@@ -96,13 +111,24 @@ class PromptController extends ResourceController
         // empty row and throw DataException::forEmptyDataset() — skip the column update
         // entirely in that case; the pivot syncs below still run regardless.
         $updatableFields = array_intersect_key($data, array_flip($this->model->allowedFields));
-        if ($updatableFields !== []) {
-            $this->model->skipValidation(true)->update($id, $updatableFields);
-        }
 
-        $this->syncPivot('prompt_category', (int) $id, 'category_id', $data['category_ids'] ?? null);
-        $this->syncPivot('prompt_tag', (int) $id, 'tag_id', $data['tag_ids'] ?? null);
-        $this->syncPivot('prompt_role', (int) $id, 'role_id', $data['role_ids'] ?? null);
+        $db = db_connect();
+        // See create()'s comment on transStrict/transException: without them, a failed query
+        // would roll back silently behind a 2xx response, and — since $db is shared and
+        // long-lived — could also poison every later transaction on this connection.
+        $db->transStrict(false)->transException(true)->transStart();
+        try {
+            if ($updatableFields !== []) {
+                $this->model->skipValidation(true)->update($id, $updatableFields);
+            }
+            $this->syncPivot('prompt_category', (int) $id, 'category_id', $data['category_ids'] ?? null);
+            $this->syncPivot('prompt_tag', (int) $id, 'tag_id', $data['tag_ids'] ?? null);
+            $this->syncPivot('prompt_role', (int) $id, 'role_id', $data['role_ids'] ?? null);
+        } catch (\Throwable $e) {
+            $db->transRollback();
+            throw $e;
+        }
+        $db->transComplete();
 
         return $this->respond([
             'status' => 'success',
@@ -140,7 +166,13 @@ class PromptController extends ResourceController
         return $this->respond(['status' => 'success', 'data' => $versions]);
     }
 
-    /** Shared many-to-many sync helper for category_ids / tag_ids / role_ids. Pass null (not []) to leave a relation untouched on a partial update. */
+    /**
+     * Shared many-to-many sync helper for category_ids / tag_ids / role_ids. Pass null (not [])
+     * to leave a relation untouched on a partial update. Callers must wrap this in a transaction
+     * (see create()/update()): it deletes existing rows before re-inserting, so a mid-sync
+     * failure (e.g. a stale id violating the pivot table's foreign key) would otherwise leave
+     * the delete committed with nothing re-inserted, silently dropping the prompt's associations.
+     */
     private function syncPivot(string $table, int $promptId, string $foreignKey, ?array $ids): void
     {
         if ($ids === null) {
