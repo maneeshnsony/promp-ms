@@ -66,5 +66,9 @@
         <env name="database.tests.DBDriver" value="Postgre"/>
         <env name="database.tests.port" value="5432"/>
         <env name="database.tests.DBPrefix" value=""/>
+        <!-- Test-only signing key so JWT::encode()/decode() have a string to work with
+             when no backend/.env exists (e.g. in CI, where that git-ignored file is never
+             checked out). Never used to sign anything outside the test suite. -->
+        <env name="APP_JWT_SECRET" value="test-only-secret-do-not-use-in-production"/>
     </php>
 </phpunit>
