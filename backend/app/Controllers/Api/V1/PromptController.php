@@ -110,7 +110,11 @@ class PromptController extends ResourceController
         // $this->model->allowedFields, so calling update() with it would strip down to an
         // empty row and throw DataException::forEmptyDataset() — skip the column update
         // entirely in that case; the pivot syncs below still run regardless.
+        // created_by is in allowedFields only so create() can server-set it (see above) —
+        // it must never be client-writable on update, or any authenticated user could
+        // reassign a prompt's attribution to an arbitrary user id.
         $updatableFields = array_intersect_key($data, array_flip($this->model->allowedFields));
+        unset($updatableFields['created_by']);
 
         $db = db_connect();
         // See create()'s comment on transStrict/transException: without them, a failed query
@@ -161,6 +165,10 @@ class PromptController extends ResourceController
 
     public function versions($id = null)
     {
+        if (! $this->model->find($id)) {
+            return $this->failNotFound();
+        }
+
         $versions = (new PromptVersionModel())->where('prompt_id', $id)->orderBy('edited_at', 'DESC')->findAll();
 
         return $this->respond(['status' => 'success', 'data' => $versions]);

@@ -231,6 +231,36 @@ final class PromptControllerTest extends CIUnitTestCase
         $this->assertSame('v1', $body['data'][0]['description']);
     }
 
+    public function testVersionsReturns404ForMissingPrompt(): void
+    {
+        $result = $this->withHeaders($this->authHeader())->get('api/v1/prompts/999999/versions');
+
+        $result->assertStatus(404);
+    }
+
+    public function testUpdateCannotReassignCreatedBy(): void
+    {
+        $promptId = $this->insertPrompt([
+            'title'       => self::TITLE_PREFIX . ' CreatedByGuard',
+            'description' => 'Original',
+            'created_by'  => $this->userId,
+        ]);
+
+        $result = $this->withHeaders($this->authHeader())
+            ->withBodyFormat('json')
+            ->put('api/v1/prompts/' . $promptId, [
+                'title'       => self::TITLE_PREFIX . ' CreatedByGuard (edited)',
+                'description' => 'Original',
+                'created_by'  => $this->userId + 999,
+            ]);
+
+        $result->assertStatus(200);
+        $body = json_decode($result->getJSON(), true);
+        $this->assertSame(self::TITLE_PREFIX . ' CreatedByGuard (edited)', $body['data']['title']);
+
+        $this->seeInDatabase('prompts', ['id' => $promptId, 'created_by' => $this->userId]);
+    }
+
     public function testTrackCopyIncrementsCopyCountAndReturns204(): void
     {
         $promptId = $this->insertPrompt(['title' => self::TITLE_PREFIX . ' Copy', 'copy_count' => 0]);
